@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatores — Escuchá el partido como en casa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0A0F1E;
+    --surface: #111827;
+    --card: #1A2035;
+    --border: #253050;
+    --sky: #4FC3F7;
+    --gold: #F5C518;
+    --white: #FFFFFF;
+    --muted: #6B7A99;
+    --red: #EF4444;
+    --green: #22C55E;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: rgba(10,15,30,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 28px;
+    letter-spacing: 0.02em;
+    color: var(--white);
+  }
+  .logo span { color: var(--sky); }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--red);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* ── HERO ── */
+  .hero {
+    padding: 48px 32px 32px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .hero-eyebrow {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sky);
+    margin-bottom: 14px;
+  }
+
+  .hero-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: clamp(42px, 7vw, 76px);
+    font-weight: 900;
+    line-height: 0.95;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    margin-bottom: 20px;
+  }
+  .hero-title em {
+    font-style: normal;
+    color: var(--sky);
+  }
+
+  .hero-sub {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 520px;
+    margin-bottom: 36px;
+  }
+
+  /* ── STATIONS GRID ── */
+  .section-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .stations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .station-card {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s, transform 0.12s;
+    position: relative;
+    overflow: hidden;
+  }
+  .station-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: transparent;
+    transition: background 0.2s;
+  }
+  .station-card:hover { transform: translateY(-2px); border-color: #374570; }
+  .station-card.active {
+    border-color: var(--sky);
+    background: rgba(79,195,247,0.07);
+  }
+  .station-card.active::before { background: var(--sky); }
+
+  .station-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+    color: var(--white);
+  }
+  .station-freq {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .station-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .station-status.ok { color: var(--green); }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* ── PLAYER PANEL ── */
+  .player-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 32px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .player-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+
+  .now-playing-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sky);
+    margin-bottom: 4px;
+  }
+  .now-playing-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+  }
+
+  .play-btn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--sky);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.12s;
+    flex-shrink: 0;
+  }
+  .play-btn:hover { background: #81D4FA; transform: scale(1.06); }
+  .play-btn:active { transform: scale(0.96); }
+  .play-btn svg { fill: var(--bg); width: 22px; height: 22px; }
+  .play-btn.playing { background: var(--gold); }
+
+  /* ── WAVEFORM ── */
+  .waveform-wrap {
+    height: 56px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+  }
+  #waveform {
+    width: 100%; height: 100%;
+  }
+  .waveform-idle-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+    pointer-events: none;
+  }
+
+  /* ── DELAY SLIDER ── */
+  .delay-section { margin-bottom: 8px; }
+
+  .delay-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .delay-label-group {}
+  .delay-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .delay-hint {
+    font-size: 12px;
+    color: #4A5570;
+  }
+
+  .delay-value-display {
+    text-align: right;
+  }
+  .delay-seconds {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 48px;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--gold);
+    letter-spacing: -0.02em;
+  }
+  .delay-unit {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-left: 3px;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+    margin: 10px 0 14px;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--gold);
+    transition: transform 0.12s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range]::-moz-range-thumb {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 3px solid var(--bg);
+    cursor: pointer;
+  }
+
+  .delay-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* ── QUICK PRESETS ── */
+  .presets {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+  }
+
+  .preset-btn {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    font-family: 'Inter', sans-serif;
+  }
+  .preset-btn:hover { border-color: var(--sky); color: var(--sky); }
+  .preset-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(245,197,24,0.08); }
+
+  .presets-label {
+    font-size: 12px;
+    color: var(--muted);
+    align-self: center;
+    margin-right: 4px;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  /* ── FINE TUNE ── */
+  .fine-tune {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .fine-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .fine-btn {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    color: var(--white);
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.12s, background 0.12s;
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+  .fine-btn:hover { border-color: var(--sky); background: rgba(79,195,247,0.08); }
+  .fine-step {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  /* ── VOLUME ── */
+  .volume-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .vol-icon { color: var(--muted); flex-shrink: 0; }
+  .volume-row input[type=range] { margin: 0; flex: 1; }
+
+  /* ── TIP BOX ── */
+  .tip-box {
+    background: rgba(79,195,247,0.06);
+    border: 1px solid rgba(79,195,247,0.2);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    max-width: 900px;
+    margin: 0 auto 40px;
+  }
+  .tip-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .tip-text { font-size: 14px; color: #8ABCCC; line-height: 1.55; }
+  .tip-text strong { color: var(--sky); }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 28px 32px 40px;
+    font-size: 12px;
+    color: #2E3A55;
+    border-top: 1px solid var(--border);
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    header { padding: 16px 20px; }
+    .hero { padding: 32px 20px 24px; }
+    .player-panel { padding: 22px 18px; margin: 0 20px 24px; }
+    .tip-box { margin: 0 20px 32px; }
+    .stations-grid { grid-template-columns: 1fr 1fr; }
+    .delay-seconds { font-size: 38px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">RE<span>LATORES</span></div>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    Stream en vivo
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <p class="hero-eyebrow">Para los argentinos en el mundo</p>
+    <h1 class="hero-title">El partido<br>con <em>tu</em> voz</h1>
+    <p class="hero-sub">
+      Poné el partido en la tele en silencio, elegí una radio argentina y ajustá el delay hasta que el audio quede perfecto con la imagen. Nada más.
+    </p>
+
+    <p class="section-label">Elegí tu radio</p>
+    <div class="stations-grid" id="stationsGrid"></div>
+  </div>
+
+  <div class="player-panel" id="playerPanel">
+    <div class="player-top">
+      <div>
+        <div class="now-playing-label">Escuchando</div>
+        <div class="now-playing-name" id="nowPlayingName">— Seleccioná una radio —</div>
+      </div>
+      <button class="play-btn" id="playBtn" title="Play / Pause">
+        <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>
+
+    <div class="waveform-wrap">
+      <canvas id="waveform"></canvas>
+      <div class="waveform-idle-text" id="waveformIdle">Seleccioná una radio para comenzar</div>
+    </div>
+
+    <div class="delay-section">
+      <div class="delay-header">
+        <div class="delay-label-group">
+          <div class="delay-label">Delay de audio</div>
+          <div class="delay-hint">Ajustá hasta que el audio coincida con la imagen</div>
+        </div>
+        <div class="delay-value-display">
+          <span class="delay-seconds" id="delayDisplay">0.0</span><span class="delay-unit">s</span>
+        </div>
+      </div>
+
+      <input type="range" id="delaySlider" min="0" max="60" step="0.1" value="0">
+
+      <div class="delay-ticks">
+        <span>0s</span><span>15s</span><span>30s</span><span>45s</span><span>60s</span>
+      </div>
+
+      <div class="presets">
+        <span class="presets-label">Presets rápidos:</span>
+        <button class="preset-btn active" data-delay="0">Sin delay</button>
+        <button class="preset-btn" data-delay="5">5s</button>
+        <button class="preset-btn" data-delay="10">10s</button>
+        <button class="preset-btn" data-delay="15">15s</button>
+        <button class="preset-btn" data-delay="20">20s</button>
+        <button class="preset-btn" data-delay="30">30s</button>
+        <button class="preset-btn" data-delay="45">45s</button>
+      </div>
+
+      <div class="fine-tune">
+        <span class="fine-label">Ajuste fino:</span>
+        <button class="fine-btn" id="minus5">−</button>
+        <span class="fine-step">5s</span>
+        <button class="fine-btn" id="plus5">+</button>
+        <button class="fine-btn" id="minus1" style="margin-left:8px">−</button>
+        <span class="fine-step">1s</span>
+        <button class="fine-btn" id="plus1">+</button>
+        <button class="fine-btn" id="minusDot1" style="margin-left:8px">−</button>
+        <span class="fine-step">0.1s</span>
+        <button class="fine-btn" id="plusDot1">+</button>
+      </div>
+    </div>
+
+    <div class="volume-row">
+      <svg class="vol-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+      </svg>
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
+      <svg class="vol-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM18.5 12c0-2.77-1.6-5.15-4-6.29v12.56c2.4-1.13 4-3.5 4-6.27z"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="tip-box">
+    <div class="tip-icon">📺</div>
+    <div class="tip-text">
+      <strong>Cómo usarlo:</strong> Silenciá el audio de tu tele o stream, abrí Relatores en el teléfono o la compu, elegí una radio y dale Play. Después mové el delay hasta que lo que escuchás coincida con lo que ves. Empezá desde 5s y ajustá de a poco. ¡La primera vez que pegás el gol con el relator es mágica!
+    </div>
+  </div>
+</main>
+
+<footer>
+  Relatores — Hecho con amor para los argentinos en el mundo 🇦🇷<br>
+  <span style="margin-top:6px;display:block">Las radios son públicas. Si una no carga puede ser por restricciones de CORS del emisor.</span>
+</footer>
+
+<audio id="audioEl" crossorigin="anonymous"></audio>
+
+<script>
+// ── STATIONS ──────────────────────────────────────────────────────────────────
+// Real public Argentinian radio streams (HLS/MP3). 
+// Some may require a proxy in production due to CORS headers from the broadcaster.
+const STATIONS = [
+  {
+    id: 'rnacional',
+    name: 'Radio Nacional',
+    freq: 'AM 870 / FM 98.7 — Buenos Aires',
+    stream: 'https://livestreaming.educ.ar/nacionales/nacfm.m3u8',
+    fallback: 'https://stream.spainmedia.es/nacionales/nacfm',
+  },
+  {
+    id: 'rivadavia',
+    name: 'Radio Rivadavia',
+    freq: 'AM 630 — Buenos Aires',
+    stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/RIVADAVIA_AM.mp3',
+  },
+  {
+    id: 'continental',
+    name: 'Radio Continental',
+    freq: 'AM 590 — Buenos Aires',
+    stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIOCONTINENTAL_SC',
+  },
+  {
+    id: 'la990',
+    name: 'La 990',
+    freq: 'AM 990 — Buenos Aires',
+    stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/LARADIO990.mp3',
+  },
+  {
+    id: 'mitre',
+    name: 'Radio Mitre',
+    freq: 'AM 790 — Buenos Aires',
+    stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIOAM790.mp3',
+  },
+  {
+    id: 'vorterix',
+    name: 'Vorterix',
+    freq: 'FM 92.1 — Buenos Aires',
+    stream: 'https://edge.iono.fm/b/258',
+  },
+  {
+    id: 'la100',
+    name: 'La 100',
+    freq: 'FM 99.9 — Buenos Aires',
+    stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/LA100.mp3',
+  },
+  {
+    id: 'sport890',
+    name: 'Sport 890',
+    freq: 'AM 890 — Montevideo (UY)',
+    stream: 'https://stream.zeno.fm/fzqr4vqmdxzuv',
+  },
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+let sourceNode = null;
+let delayNode = null;
+let gainNode = null;
+let analyser = null;
+let animFrameId = null;
+let isPlaying = false;
+let currentStation = null;
+let delaySeconds = 0;
+let bufferingTimeout = null;
+
+const audioEl = document.getElementById('audioEl');
+const playBtn = document.getElementById('playBtn');
+const playIcon = document.getElementById('playIcon');
+const nowPlayingName = document.getElementById('nowPlayingName');
+const delaySlider = document.getElementById('delaySlider');
+const delayDisplay = document.getElementById('delayDisplay');
+const volumeSlider = document.getElementById('volumeSlider');
+const waveformCanvas = document.getElementById('waveform');
+const waveformIdle = document.getElementById('waveformIdle');
+const ctx2d = waveformCanvas.getContext('2d');
+
+// ── RENDER STATIONS ───────────────────────────────────────────────────────────
+function renderStations() {
+  const grid = document.getElementById('stationsGrid');
+  grid.innerHTML = '';
+  STATIONS.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'station-card';
+    card.dataset.id = s.id;
+    card.innerHTML = `
+      <div class="station-name">${s.name}</div>
+      <div class="station-freq">${s.freq}</div>
+      <div class="station-status" id="status-${s.id}">
+        <div class="status-dot"></div> Listo
+      </div>`;
+    card.addEventListener('click', () => selectStation(s));
+    grid.appendChild(card);
+  });
+}
+
+// ── AUDIO CONTEXT & GRAPH ─────────────────────────────────────────────────────
+function ensureAudioContext() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  sourceNode = audioCtx.createMediaElementSource(audioEl);
+  delayNode = audioCtx.createDelay(65); // max 65s
+  gainNode = audioCtx.createGain();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+
+  sourceNode.connect(delayNode);
+  delayNode.connect(gainNode);
+  gainNode.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  delayNode.delayTime.value = delaySeconds;
+  gainNode.gain.value = parseFloat(volumeSlider.value);
+}
+
+// ── SELECT STATION ────────────────────────────────────────────────────────────
+function selectStation(station) {
+  document.querySelectorAll('.station-card').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.station-card[data-id="${station.id}"]`).classList.add('active');
+
+  currentStation = station;
+  nowPlayingName.textContent = station.name;
+
+  if (isPlaying) {
+    stopAudio();
+    startAudio(station);
+  }
+}
+
+// ── PLAY / STOP ───────────────────────────────────────────────────────────────
+function startAudio(station) {
+  ensureAudioContext();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  setStatus(station.id, 'loading');
+  audioEl.src = station.stream;
+  audioEl.load();
+  audioEl.play().then(() => {
+    isPlaying = true;
+    playBtn.classList.add('playing');
+    playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+    waveformIdle.style.display = 'none';
+    drawWaveform();
+    setStatus(station.id, 'ok');
+  }).catch(err => {
+    console.warn('Stream error:', err);
+    setStatus(station.id, 'error');
+  });
+}
+
+function stopAudio() {
+  audioEl.pause();
+  audioEl.src = '';
+  isPlaying = false;
+  playBtn.classList.remove('playing');
+  playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+  waveformIdle.style.display = 'flex';
+  cancelAnimationFrame(animFrameId);
+  clearCanvas();
+}
+
+playBtn.addEventListener('click', () => {
+  if (!currentStation) return;
+  if (isPlaying) { stopAudio(); }
+  else { startAudio(currentStation); }
+});
+
+audioEl.addEventListener('error', () => {
+  if (currentStation) setStatus(currentStation.id, 'error');
+  stopAudio();
+});
+
+// ── STATUS INDICATOR ──────────────────────────────────────────────────────────
+function setStatus(stationId, state) {
+  const el = document.getElementById(`status-${stationId}`);
+  if (!el) return;
+  const labels = { loading: '⏳ Conectando…', ok: '✔ En vivo', error: '✗ Sin señal' };
+  const colors = { loading: '#6B7A99', ok: '#22C55E', error: '#EF4444' };
+  el.innerHTML = `<div class="status-dot" style="background:${colors[state]}"></div> ${labels[state].replace(/^[^ ]+ /, '')}`;
+  el.style.color = colors[state];
+  el.className = 'station-status' + (state === 'ok' ? ' ok' : '');
+}
+
+// ── DELAY ─────────────────────────────────────────────────────────────────────
+function setDelay(val) {
+  val = Math.max(0, Math.min(60, Math.round(val * 10) / 10));
+  delaySeconds = val;
+  delaySlider.value = val;
+  delayDisplay.textContent = val.toFixed(1);
+  if (delayNode) delayNode.delayTime.value = val;
+
+  // Update preset buttons
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', parseFloat(b.dataset.delay) === val);
+  });
+}
+
+delaySlider.addEventListener('input', e => setDelay(parseFloat(e.target.value)));
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => setDelay(parseFloat(btn.dataset.delay)));
+});
+
+document.getElementById('minus5').addEventListener('click', () => setDelay(delaySeconds - 5));
+document.getElementById('plus5').addEventListener('click', () => setDelay(delaySeconds + 5));
+document.getElementById('minus1').addEventListener('click', () => setDelay(delaySeconds - 1));
+document.getElementById('plus1').addEventListener('click', () => setDelay(delaySeconds + 1));
+document.getElementById('minusDot1').addEventListener('click', () => setDelay(delaySeconds - 0.1));
+document.getElementById('plusDot1').addEventListener('click', () => setDelay(delaySeconds + 0.1));
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') setDelay(delaySeconds - (e.shiftKey ? 5 : 1));
+  if (e.key === 'ArrowRight') setDelay(delaySeconds + (e.shiftKey ? 5 : 1));
+  if (e.key === ' ') { e.preventDefault(); playBtn.click(); }
+});
+
+// ── VOLUME ────────────────────────────────────────────────────────────────────
+volumeSlider.addEventListener('input', e => {
+  if (gainNode) gainNode.gain.value = parseFloat(e.target.value);
+});
+
+// ── WAVEFORM VISUALISER ───────────────────────────────────────────────────────
+function resizeCanvas() {
+  waveformCanvas.width = waveformCanvas.offsetWidth * window.devicePixelRatio;
+  waveformCanvas.height = waveformCanvas.offsetHeight * window.devicePixelRatio;
+  ctx2d.scale(window.devicePixelRatio, window.devicePixelRatio);
+}
+
+function clearCanvas() {
+  const w = waveformCanvas.offsetWidth;
+  const h = waveformCanvas.offsetHeight;
+  ctx2d.clearRect(0, 0, w, h);
+}
+
+function drawWaveform() {
+  if (!analyser) return;
+  animFrameId = requestAnimationFrame(drawWaveform);
+
+  const bufLen = analyser.frequencyBinCount;
+  const dataArr = new Uint8Array(bufLen);
+  analyser.getByteTimeDomainData(dataArr);
+
+  const w = waveformCanvas.offsetWidth;
+  const h = waveformCanvas.offsetHeight;
+  ctx2d.clearRect(0, 0, w, h);
+
+  // Gradient stroke
+  const grad = ctx2d.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0, '#4FC3F7');
+  grad.addColorStop(0.5, '#F5C518');
+  grad.addColorStop(1, '#4FC3F7');
+
+  ctx2d.lineWidth = 2.5;
+  ctx2d.strokeStyle = grad;
+  ctx2d.shadowBlur = 8;
+  ctx2d.shadowColor = '#4FC3F744';
+  ctx2d.beginPath();
+
+  const sliceW = w / bufLen;
+  let x = 0;
+  for (let i = 0; i < bufLen; i++) {
+    const v = dataArr[i] / 128.0;
+    const y = (v * h) / 2;
+    if (i === 0) ctx2d.moveTo(x, y);
+    else ctx2d.lineTo(x, y);
+    x += sliceW;
+  }
+  ctx2d.lineTo(w, h / 2);
+  ctx2d.stroke();
+  ctx2d.shadowBlur = 0;
+}
+
+window.addEventListener('resize', () => { resizeCanvas(); });
+resizeCanvas();
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderStations();
+setDelay(0);
+</script>
+</body>
+</html>
