@@ -28,7 +28,7 @@ const BUILT_IN_STATIONS = [
     id: 'mitre',
     name: 'Radio Mitre',
     freq: 'AM 790 — Buenos Aires',
-    stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIOAM790.mp3',
+    stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/AM790_56AAC.aac',
   },
   {
     id: 'vorterix',
