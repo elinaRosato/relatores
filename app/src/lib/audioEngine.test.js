@@ -15,7 +15,7 @@ class FakeAudioContext {
     return { connect: vi.fn(), gain: { value: 1 } };
   }
   createAnalyser() {
-    return { connect: vi.fn(), fftSize: 0 };
+    return { connect: vi.fn(), disconnect: vi.fn(), fftSize: 0 };
   }
   resume() {}
 }
@@ -27,6 +27,7 @@ beforeEach(() => {
   });
   window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
   window.HTMLMediaElement.prototype.load = vi.fn();
+  window.HTMLMediaElement.prototype.pause = vi.fn();
 });
 
 const testStation = { id: 'x', name: 'Test Station', stream: 'https://example.com/x.mp3' };
@@ -81,6 +82,24 @@ describe('delay and gain control', () => {
     await play(testStation);
     setGain(0.5);
     expect(getGainValue()).toBe(0.5);
+  });
+});
+
+describe('pause does not let buffered delayed audio keep draining out', () => {
+  it('disconnects the output from the destination on pause', async () => {
+    const { play, pause, getAnalyser } = await import('./audioEngine.js');
+    await play(testStation);
+    pause();
+    expect(getAnalyser().disconnect).toHaveBeenCalled();
+  });
+
+  it('reconnects the output when playing again after a pause', async () => {
+    const { play, pause, getAnalyser } = await import('./audioEngine.js');
+    await play(testStation);
+    pause();
+    getAnalyser().connect.mockClear();
+    await play(testStation);
+    expect(getAnalyser().connect).toHaveBeenCalledWith(expect.anything());
   });
 });
 

@@ -31,16 +31,41 @@
     audioEngine.setGain($volume);
   });
 
+  let playRequestId = 0;
+
+  // delayNode doesn't emit audible output until delaySeconds have elapsed
+  // since the source started, so the spinner stays up through that window
+  // too -- otherwise the button would say "playing" while still silent.
+  // Polls (rather than scheduling one exact timeout) so a mid-wait change
+  // to delaySeconds shortens or extends the remaining wait automatically.
+  function waitForDelayBuffer() {
+    const startTime = Date.now();
+    return new Promise((resolve) => {
+      function tick() {
+        if (Date.now() - startTime >= get(delaySeconds) * 1000) {
+          resolve();
+        } else {
+          setTimeout(tick, 100);
+        }
+      }
+      tick();
+    });
+  }
+
   async function startPlayback(station) {
+    const requestId = ++playRequestId;
     isPlaying.set(false);
     isLoading.set(true);
     try {
       await audioEngine.play(station);
+      if (requestId !== playRequestId) return;
+      await waitForDelayBuffer();
+      if (requestId !== playRequestId) return;
       isPlaying.set(true);
     } catch (err) {
-      console.warn('Stream error:', err);
+      if (requestId === playRequestId) console.warn('Stream error:', err);
     } finally {
-      isLoading.set(false);
+      if (requestId === playRequestId) isLoading.set(false);
     }
   }
 

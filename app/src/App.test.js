@@ -182,6 +182,50 @@ describe('loading state', () => {
   });
 });
 
+describe('loading extends through the configured delay', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('stays loading until the configured delay has elapsed after the stream starts', async () => {
+    render(App);
+    await screen.findByText('Radio Nacional');
+    await fireEvent.click(screen.getByText('La 100'));
+    setDelay(10);
+
+    vi.useFakeTimers();
+    await fireEvent.click(screen.getByLabelText('Play / Pause'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(get(isLoading)).toBe(true);
+    expect(get(isPlaying)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(9800);
+    expect(get(isLoading)).toBe(true);
+    expect(get(isPlaying)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(get(isLoading)).toBe(false);
+    expect(get(isPlaying)).toBe(true);
+  });
+
+  it('shortens the remaining wait if the delay is reduced while still loading', async () => {
+    render(App);
+    await screen.findByText('Radio Nacional');
+    await fireEvent.click(screen.getByText('La 100'));
+    setDelay(10);
+
+    vi.useFakeTimers();
+    await fireEvent.click(screen.getByLabelText('Play / Pause'));
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(get(isLoading)).toBe(true);
+
+    setDelay(2);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(get(isLoading)).toBe(false);
+    expect(get(isPlaying)).toBe(true);
+  });
+});
+
 describe('delay and volume wiring', () => {
   it('pushes delay changes to the audio engine and persists them for the current station', async () => {
     render(App);

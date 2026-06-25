@@ -33,7 +33,6 @@ function ensureAudioContext() {
   sourceNode.connect(delayNode);
   delayNode.connect(gainNode);
   gainNode.connect(analyserNode);
-  analyserNode.connect(audioCtx.destination);
 
   attachBackgroundAudioSupport();
 }
@@ -49,6 +48,10 @@ export function getAudioElement() {
 export async function play(station) {
   ensureAudioContext();
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  // delayNode keeps buffering audio for delayTime seconds after the source
+  // stops, so pause() disconnects downstream of it to silence immediately;
+  // reconnect here rather than in ensureAudioContext (which only runs once).
+  analyserNode.connect(audioCtx.destination);
 
   if (navigator.audioSession) {
     navigator.audioSession.type = 'play';
@@ -63,6 +66,7 @@ export function pause() {
   if (!audioEl) return;
   audioEl.pause();
   audioEl.src = '';
+  if (analyserNode) analyserNode.disconnect();
 }
 
 export function setDelaySeconds(seconds) {
