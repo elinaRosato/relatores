@@ -1,6 +1,6 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { isPlaying } from '../lib/stores.js';
+  import { isPlaying, currentStation } from '../lib/stores.js';
   import { getAnalyser } from '../lib/audioEngine.js';
 
   let canvas;
@@ -14,15 +14,7 @@
     ctx.scale(dpr, dpr);
   }
 
-  function draw() {
-    const analyser = getAnalyser();
-    if (!ctx || !analyser) return;
-    frameId = requestAnimationFrame(draw);
-
-    const bufLen = analyser.frequencyBinCount;
-    const dataArr = new Uint8Array(bufLen);
-    analyser.getByteTimeDomainData(dataArr);
-
+  function strokeGradientPath(drawPath) {
     const w = canvas.offsetWidth;
     const h = canvas.offsetHeight;
     ctx.clearRect(0, 0, w, h);
@@ -37,19 +29,39 @@
     ctx.shadowBlur = 8;
     ctx.shadowColor = '#4FC3F744';
     ctx.beginPath();
-
-    const sliceW = w / bufLen;
-    let x = 0;
-    for (let i = 0; i < bufLen; i++) {
-      const v = dataArr[i] / 128.0;
-      const y = (v * h) / 2;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-      x += sliceW;
-    }
-    ctx.lineTo(w, h / 2);
+    drawPath(w, h);
     ctx.stroke();
     ctx.shadowBlur = 0;
+  }
+
+  function draw() {
+    const analyser = getAnalyser();
+    if (!ctx || !analyser) return;
+    frameId = requestAnimationFrame(draw);
+
+    const bufLen = analyser.frequencyBinCount;
+    const dataArr = new Uint8Array(bufLen);
+    analyser.getByteTimeDomainData(dataArr);
+
+    strokeGradientPath((w, h) => {
+      const sliceW = w / bufLen;
+      let x = 0;
+      for (let i = 0; i < bufLen; i++) {
+        const v = dataArr[i] / 128.0;
+        const y = (v * h) / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceW;
+      }
+      ctx.lineTo(w, h / 2);
+    });
+  }
+
+  function drawFlatLine() {
+    strokeGradientPath((w, h) => {
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+    });
   }
 
   function stopDrawing() {
@@ -57,16 +69,22 @@
       cancelAnimationFrame(frameId);
       frameId = null;
     }
-    if (ctx) ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+    if (!ctx) return;
+    if ($currentStation) {
+      drawFlatLine();
+    } else {
+      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+    }
   }
 
   $effect(() => {
+    if ($currentStation && !ctx) {
+      ctx = canvas.getContext('2d');
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+    }
+
     if ($isPlaying) {
-      if (!ctx) {
-        ctx = canvas.getContext('2d');
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-      }
       if (frameId === null) draw();
     } else {
       stopDrawing();
@@ -81,7 +99,7 @@
 
 <div class="waveform-wrap">
   <canvas bind:this={canvas}></canvas>
-  {#if !$isPlaying}
+  {#if !$currentStation}
     <div class="waveform-idle-text">Seleccioná una radio para comenzar</div>
   {/if}
 </div>

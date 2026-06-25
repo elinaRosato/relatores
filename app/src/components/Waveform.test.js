@@ -1,12 +1,14 @@
 import { render, screen, cleanup } from '@testing-library/svelte';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Waveform from './Waveform.svelte';
-import { isPlaying } from '../lib/stores.js';
+import { isPlaying, currentStation } from '../lib/stores.js';
 
 vi.mock('../lib/audioEngine.js', () => ({
   getAnalyser: vi.fn(),
 }));
 import { getAnalyser } from '../lib/audioEngine.js';
+
+const fakeStation = { id: 'x', name: 'Test Station', freq: 'AM 000', stream: 'https://example.com/x' };
 
 let fakeCtx;
 
@@ -29,18 +31,34 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   isPlaying.set(false);
+  currentStation.set(null);
 });
 
 describe('Waveform idle state', () => {
-  it('shows the idle prompt when nothing is playing', () => {
+  it('shows the idle prompt when no station is selected', () => {
     render(Waveform);
     expect(screen.getByText('Seleccioná una radio para comenzar')).toBeTruthy();
   });
 
+  it('hides the idle prompt once a station is selected, even before playback starts', () => {
+    currentStation.set(fakeStation);
+    render(Waveform);
+    expect(screen.queryByText('Seleccioná una radio para comenzar')).toBeNull();
+  });
+
   it('hides the idle prompt while playing', () => {
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     render(Waveform);
     expect(screen.queryByText('Seleccioná una radio para comenzar')).toBeNull();
+  });
+
+  it('draws a flat line instead of the idle prompt when a station is selected but not playing', () => {
+    currentStation.set(fakeStation);
+    render(Waveform);
+    expect(fakeCtx.moveTo).toHaveBeenCalled();
+    expect(fakeCtx.lineTo).toHaveBeenCalled();
+    expect(fakeCtx.stroke).toHaveBeenCalled();
   });
 });
 
@@ -54,6 +72,7 @@ describe('Waveform animation lifecycle', () => {
 
   it('starts the animation loop when playback begins', () => {
     getAnalyser.mockReturnValue(fakeAnalyser);
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     render(Waveform);
     expect(window.requestAnimationFrame).toHaveBeenCalled();
@@ -61,6 +80,7 @@ describe('Waveform animation lifecycle', () => {
 
   it('cancels the animation loop when playback stops', async () => {
     getAnalyser.mockReturnValue(fakeAnalyser);
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     render(Waveform);
     isPlaying.set(false);
@@ -70,6 +90,7 @@ describe('Waveform animation lifecycle', () => {
 
   it('clears the canvas when playback stops, instead of leaving the last frame frozen', async () => {
     getAnalyser.mockReturnValue(fakeAnalyser);
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     render(Waveform);
     fakeCtx.clearRect.mockClear();
@@ -80,6 +101,7 @@ describe('Waveform animation lifecycle', () => {
 
   it('cancels the animation loop on unmount while still playing', () => {
     getAnalyser.mockReturnValue(fakeAnalyser);
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     const { unmount } = render(Waveform);
     unmount();
@@ -92,6 +114,7 @@ describe('Waveform drawing', () => {
 
   it('reads time-domain data from the analyser on each frame', () => {
     getAnalyser.mockReturnValue(fakeAnalyser);
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     render(Waveform);
     expect(fakeAnalyser.getByteTimeDomainData).toHaveBeenCalled();
@@ -99,6 +122,7 @@ describe('Waveform drawing', () => {
 
   it('strokes the waveform with the sky-blue/gold brand gradient', () => {
     getAnalyser.mockReturnValue(fakeAnalyser);
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     render(Waveform);
     const gradient = fakeCtx.createLinearGradient.mock.results[0].value;
@@ -129,6 +153,7 @@ describe('Waveform canvas sizing', () => {
   });
 
   it('sizes the canvas backing buffer to its CSS size scaled by devicePixelRatio', () => {
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     const { container } = render(Waveform);
     const canvas = container.querySelector('canvas');
@@ -138,6 +163,7 @@ describe('Waveform canvas sizing', () => {
   });
 
   it('resizes the canvas when the window resizes', () => {
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     render(Waveform);
     const callsBefore = fakeCtx.scale.mock.calls.length;
@@ -146,6 +172,7 @@ describe('Waveform canvas sizing', () => {
   });
 
   it('removes the resize listener when the component unmounts', () => {
+    currentStation.set(fakeStation);
     isPlaying.set(true);
     const { unmount } = render(Waveform);
     unmount();
