@@ -25,16 +25,30 @@ function ensureAudioContext() {
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   sourceNode = audioCtx.createMediaElementSource(audioEl);
-  delayNode = audioCtx.createDelay(65);
   gainNode = audioCtx.createGain();
   analyserNode = audioCtx.createAnalyser();
   analyserNode.fftSize = 256;
 
-  sourceNode.connect(delayNode);
-  delayNode.connect(gainNode);
   gainNode.connect(analyserNode);
 
   attachBackgroundAudioSupport();
+}
+
+// DelayNode has no public flush/clear API, and disconnecting it (in pause())
+// only stops new audio from entering -- whatever was already buffered from
+// before the pause is still sitting in it. Rebuilding it on every play() call
+// means playback always starts from an empty buffer, so stale audio can't
+// resurface and play back before the freshly-requested stream arrives.
+function rebuildDelayNode() {
+  const currentDelay = delayNode ? delayNode.delayTime.value : 0;
+  if (delayNode) {
+    sourceNode.disconnect();
+    delayNode.disconnect();
+  }
+  delayNode = audioCtx.createDelay(65);
+  delayNode.delayTime.value = currentDelay;
+  sourceNode.connect(delayNode);
+  delayNode.connect(gainNode);
 }
 
 export function isContextCreated() {
@@ -48,6 +62,8 @@ export function getAudioElement() {
 export async function play(station) {
   ensureAudioContext();
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  rebuildDelayNode();
+
   // delayNode keeps buffering audio for delayTime seconds after the source
   // stops, so pause() disconnects downstream of it to silence immediately;
   // reconnect here rather than in ensureAudioContext (which only runs once).

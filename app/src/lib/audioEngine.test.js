@@ -6,11 +6,9 @@ class FakeAudioContext {
     this.destination = {};
   }
   createMediaElementSource() {
-    return { connect: vi.fn() };
+    return { connect: vi.fn(), disconnect: vi.fn() };
   }
-  createDelay() {
-    return { connect: vi.fn(), delayTime: { value: 0 } };
-  }
+  createDelay = vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn(), delayTime: { value: 0 } }));
   createGain() {
     return { connect: vi.fn(), gain: { value: 1 } };
   }
@@ -100,6 +98,24 @@ describe('pause does not let buffered delayed audio keep draining out', () => {
     getAnalyser().connect.mockClear();
     await play(testStation);
     expect(getAnalyser().connect).toHaveBeenCalledWith(expect.anything());
+  });
+
+  it('rebuilds the delay node on every play() so a previous session\'s buffered audio cannot resurface', async () => {
+    const { play, pause } = await import('./audioEngine.js');
+    await play(testStation);
+    pause();
+    await play(testStation);
+    const ctxInstance = window.AudioContext.mock.results[0].value;
+    expect(ctxInstance.createDelay).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves the configured delay value across the rebuild', async () => {
+    const { play, pause, setDelaySeconds, getDelayTimeValue } = await import('./audioEngine.js');
+    await play(testStation);
+    setDelaySeconds(12.3);
+    pause();
+    await play(testStation);
+    expect(getDelayTimeValue()).toBe(12.3);
   });
 });
 
