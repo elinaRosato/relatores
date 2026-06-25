@@ -258,6 +258,23 @@ header {
 .play-btn.playing {
   background: var(--gold);
 }
+.play-btn.loading {
+  background: var(--sky);
+  cursor: wait;
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(10, 15, 30, 0.35);
+  border-top-color: var(--bg);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* ── WAVEFORM ── */
 .waveform-wrap {

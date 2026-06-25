@@ -6,6 +6,7 @@ import {
   setDelay,
   currentStation,
   isPlaying,
+  isLoading,
   volume,
 } from './stores.js';
 
@@ -40,6 +41,10 @@ describe('default store values', () => {
 
   it('starts paused', () => {
     expect(get(isPlaying)).toBe(false);
+  });
+
+  it('starts not loading', () => {
+    expect(get(isLoading)).toBe(false);
   });
 
   it('starts at full volume', () => {

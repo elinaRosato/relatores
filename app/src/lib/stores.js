@@ -13,4 +13,5 @@ export function setDelay(value) {
 
 export const currentStation = writable(null);
 export const isPlaying = writable(false);
+export const isLoading = writable(false);
 export const volume = writable(1);

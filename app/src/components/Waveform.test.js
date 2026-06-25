@@ -68,6 +68,16 @@ describe('Waveform animation lifecycle', () => {
     expect(window.cancelAnimationFrame).toHaveBeenCalledWith(1);
   });
 
+  it('clears the canvas when playback stops, instead of leaving the last frame frozen', async () => {
+    getAnalyser.mockReturnValue(fakeAnalyser);
+    isPlaying.set(true);
+    render(Waveform);
+    fakeCtx.clearRect.mockClear();
+    isPlaying.set(false);
+    await Promise.resolve();
+    expect(fakeCtx.clearRect).toHaveBeenCalled();
+  });
+
   it('cancels the animation loop on unmount while still playing', () => {
     getAnalyser.mockReturnValue(fakeAnalyser);
     isPlaying.set(true);

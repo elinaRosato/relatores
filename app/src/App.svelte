@@ -4,7 +4,7 @@
   import StationGrid from './components/StationGrid.svelte';
   import DelayPanel from './components/DelayPanel.svelte';
   import Waveform from './components/Waveform.svelte';
-  import { currentStation, isPlaying, volume, delaySeconds, setDelay } from './lib/stores.js';
+  import { currentStation, isPlaying, isLoading, volume, delaySeconds, setDelay } from './lib/stores.js';
   import { fetchStations } from './lib/stations.js';
   import { getLastStationId, setLastStationId, getStationDelay, setStationDelay } from './lib/persistence.js';
   import * as audioEngine from './lib/audioEngine.js';
@@ -31,15 +31,25 @@
     audioEngine.setGain($volume);
   });
 
+  async function startPlayback(station) {
+    isPlaying.set(false);
+    isLoading.set(true);
+    try {
+      await audioEngine.play(station);
+      isPlaying.set(true);
+    } catch (err) {
+      console.warn('Stream error:', err);
+    } finally {
+      isLoading.set(false);
+    }
+  }
+
   function handleSelect(station) {
     currentStation.set(station);
     setLastStationId(station.id);
     setDelay(getStationDelay(station.id));
-    if (get(isPlaying)) {
-      audioEngine.play(station).catch((err) => {
-        console.warn('Stream error:', err);
-        isPlaying.set(false);
-      });
+    if (get(isPlaying) || get(isLoading)) {
+      startPlayback(station);
     }
   }
 
@@ -51,12 +61,7 @@
       isPlaying.set(false);
       return;
     }
-    try {
-      await audioEngine.play(station);
-      isPlaying.set(true);
-    } catch (err) {
-      console.warn('Stream error:', err);
-    }
+    await startPlayback(station);
   }
 </script>
 
@@ -92,18 +97,23 @@
       <button
         class="play-btn"
         class:playing={$isPlaying}
+        class:loading={$isLoading}
         onclick={togglePlay}
-        disabled={!$currentStation}
+        disabled={!$currentStation || $isLoading}
         aria-label="Play / Pause"
         title="Play / Pause"
       >
-        <svg viewBox="0 0 24 24">
-          {#if $isPlaying}
-            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-          {:else}
-            <path d="M8 5v14l11-7z" />
-          {/if}
-        </svg>
+        {#if $isLoading}
+          <span class="spinner"></span>
+        {:else}
+          <svg viewBox="0 0 24 24">
+            {#if $isPlaying}
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+            {:else}
+              <path d="M8 5v14l11-7z" />
+            {/if}
+          </svg>
+        {/if}
       </button>
     </div>
 

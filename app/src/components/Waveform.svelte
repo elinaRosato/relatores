@@ -57,6 +57,7 @@
       cancelAnimationFrame(frameId);
       frameId = null;
     }
+    if (ctx) ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
   }
 
   $effect(() => {

@@ -1,8 +1,8 @@
-import { render, screen, cleanup, fireEvent } from '@testing-library/svelte';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
 import App from './App.svelte';
-import { currentStation, isPlaying, volume, delaySeconds, setDelay } from './lib/stores.js';
+import { currentStation, isPlaying, isLoading, volume, delaySeconds, setDelay } from './lib/stores.js';
 import { setLastStationId, setStationDelay, getLastStationId, getStationDelay } from './lib/persistence.js';
 
 vi.mock('./lib/audioEngine.js', () => ({
@@ -20,6 +20,7 @@ beforeEach(() => {
   localStorage.clear();
   currentStation.set(null);
   isPlaying.set(false);
+  isLoading.set(false);
   volume.set(1);
   setDelay(0);
   audioEngine.play.mockClear();
@@ -137,6 +138,47 @@ describe('play / pause', () => {
     const playBtn = await renderAndSelectLa100();
     await fireEvent.click(playBtn);
     expect(get(isPlaying)).toBe(false);
+    expect(get(isLoading)).toBe(false);
+  });
+});
+
+describe('loading state', () => {
+  async function renderAndSelectLa100() {
+    render(App);
+    await screen.findByText('Radio Nacional');
+    await fireEvent.click(screen.getByText('La 100'));
+    return screen.getByLabelText('Play / Pause');
+  }
+
+  it('shows loading immediately after clicking play, then playing once the stream starts', async () => {
+    let resolvePlay;
+    audioEngine.play.mockImplementation(() => new Promise((resolve) => { resolvePlay = resolve; }));
+    const playBtn = await renderAndSelectLa100();
+
+    fireEvent.click(playBtn);
+    await waitFor(() => expect(get(isLoading)).toBe(true));
+    expect(get(isPlaying)).toBe(false);
+    expect(playBtn.disabled).toBe(true);
+
+    resolvePlay();
+    await waitFor(() => expect(get(isPlaying)).toBe(true));
+    expect(get(isLoading)).toBe(false);
+  });
+
+  it('pauses the current station and shows loading immediately when switching while playing', async () => {
+    const playBtn = await renderAndSelectLa100();
+    await fireEvent.click(playBtn);
+    expect(get(isPlaying)).toBe(true);
+
+    let resolveSecondPlay;
+    audioEngine.play.mockImplementation(() => new Promise((resolve) => { resolveSecondPlay = resolve; }));
+    fireEvent.click(screen.getByText('Radio Nacional'));
+
+    await waitFor(() => expect(get(isLoading)).toBe(true));
+    expect(get(isPlaying)).toBe(false);
+
+    resolveSecondPlay();
+    await waitFor(() => expect(get(isPlaying)).toBe(true));
   });
 });
 
