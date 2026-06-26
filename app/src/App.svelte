@@ -109,6 +109,8 @@
   }
 </script>
 
+<div class="page-atmosphere" aria-hidden="true"></div>
+
 <header>
   <div class="logo">RE<span>LATORES</span></div>
   <div class="live-badge">
@@ -119,7 +121,7 @@
 
 <main>
   <div class="hero">
-    <p class="hero-eyebrow">Para los argentinos en el mundo</p>
+    <span class="hero-badge">🇦🇷 Para los argentinos en el mundo</span>
     <h1 class="hero-title">El partido<br />con <em>tu</em> voz</h1>
     <p class="hero-sub">
       Poné el partido en la tele en silencio, elegí una radio argentina y ajustá el delay hasta
@@ -130,12 +132,15 @@
     <StationGrid {stations} currentStationId={$currentStation?.id ?? null} onSelect={handleSelect} />
   </div>
 
-  <div class="player-panel">
+  <div class="player-panel" class:live={$isPlaying}>
     <div class="player-top">
       <div>
         <div class="now-playing-label">Escuchando</div>
         <div class="now-playing-name">
           {$currentStation ? $currentStation.name : '— Seleccioná una radio —'}
+          {#if $isPlaying}
+            <span class="live-pill"><span class="live-pill-dot"></span>En vivo</span>
+          {/if}
         </div>
       </div>
       <button
@@ -188,14 +193,31 @@
     </div>
   </div>
 
-  <div class="tip-box">
-    <div class="tip-icon">📺</div>
-    <div class="tip-text">
-      <strong>Cómo usarlo:</strong> Silenciá el audio de tu tele o stream, abrí Relatores en el
-      teléfono o la compu, elegí una radio y dale Play. Después mové el delay hasta que lo que
-      escuchás coincida con lo que ves. Empezá desde 5s y ajustá de a poco. ¡La primera vez que
-      pegás el gol con el relator es mágica!
+  <div class="howto">
+    <p class="howto-title">Cómo usarlo</p>
+    <ol class="howto-steps">
+      <li><span class="howto-num">1</span>Silenciá el audio de tu tele o stream.</li>
+      <li><span class="howto-num">2</span>Elegí tu radio argentina arriba.</li>
+      <li><span class="howto-num">3</span>Dale Play.</li>
+      <li><span class="howto-num">4</span>Ajustá el delay hasta que coincida con la imagen.</li>
+    </ol>
+    <p class="howto-footnote">Empezá desde 5s y afiná de a poco — la primera vez que pegás el gol con el relator es mágica.</p>
+  </div>
+
+  <div class="support-box">
+    <div class="support-glow" aria-hidden="true"></div>
+    <div class="support-icon">☕</div>
+    <div class="support-copy">
+      <p class="support-title">¿Te sirvió para el Mundial?</p>
+      <p class="support-text">Invitame un café — mantiene Relatores online y sin publicidad.</p>
     </div>
+    <a href="https://www.buymeacoffee.com/elinarosato" target="_blank" rel="noopener noreferrer">
+      <img
+        class="support-btn-img"
+        src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+        alt="Buy Me A Coffee"
+      />
+    </a>
   </div>
 </main>
 
