@@ -226,6 +226,57 @@ describe('loading extends through the configured delay', () => {
   });
 });
 
+describe('increasing delay while already playing', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('drops back into loading when the new delay outruns elapsed playback time', async () => {
+    render(App);
+    await screen.findByText('Radio Nacional');
+    await fireEvent.click(screen.getByText('La 100'));
+
+    vi.useFakeTimers();
+    await fireEvent.click(screen.getByLabelText('Play / Pause'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(get(isPlaying)).toBe(true);
+    expect(get(isLoading)).toBe(false);
+
+    // only 3s of real playback so far; raising the delay past that asks
+    // the delayNode for history it hasn't buffered yet
+    await vi.advanceTimersByTimeAsync(3000);
+    setDelay(10);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(get(isLoading)).toBe(true);
+    expect(get(isPlaying)).toBe(false);
+    expect(screen.getByLabelText('Play / Pause').disabled).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(6800);
+    expect(get(isLoading)).toBe(true);
+    expect(get(isPlaying)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(get(isLoading)).toBe(false);
+    expect(get(isPlaying)).toBe(true);
+  });
+
+  it('does not show loading when the new delay is still under elapsed playback time', async () => {
+    render(App);
+    await screen.findByText('Radio Nacional');
+    await fireEvent.click(screen.getByText('La 100'));
+
+    vi.useFakeTimers();
+    await fireEvent.click(screen.getByLabelText('Play / Pause'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(10000);
+    setDelay(5);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(get(isLoading)).toBe(false);
+    expect(get(isPlaying)).toBe(true);
+  });
+});
+
 describe('delay and volume wiring', () => {
   it('pushes delay changes to the audio engine and persists them for the current station', async () => {
     render(App);

@@ -21,28 +21,18 @@
     }
   });
 
-  $effect(() => {
-    const value = $delaySeconds;
-    audioEngine.setDelaySeconds(value);
-    if ($currentStation) setStationDelay($currentStation.id, value);
-  });
-
-  $effect(() => {
-    audioEngine.setGain($volume);
-  });
-
   let playRequestId = 0;
+  let streamStartedAt = 0;
 
   // delayNode doesn't emit audible output until delaySeconds have elapsed
-  // since the source started, so the spinner stays up through that window
+  // since the stream started, so the spinner stays up through that window
   // too -- otherwise the button would say "playing" while still silent.
   // Polls (rather than scheduling one exact timeout) so a mid-wait change
   // to delaySeconds shortens or extends the remaining wait automatically.
   function waitForDelayBuffer() {
-    const startTime = Date.now();
     return new Promise((resolve) => {
       function tick() {
-        if (Date.now() - startTime >= get(delaySeconds) * 1000) {
+        if (Date.now() - streamStartedAt >= get(delaySeconds) * 1000) {
           resolve();
         } else {
           setTimeout(tick, 100);
@@ -59,6 +49,7 @@
     try {
       await audioEngine.play(station);
       if (requestId !== playRequestId) return;
+      streamStartedAt = Date.now();
       await waitForDelayBuffer();
       if (requestId !== playRequestId) return;
       isPlaying.set(true);
@@ -68,6 +59,34 @@
       if (requestId === playRequestId) isLoading.set(false);
     }
   }
+
+  // Raising the delay past how long the stream has actually been running
+  // asks the delayNode for history it hasn't buffered yet, so output goes
+  // silent until enough real time passes. Drop back into the loading state
+  // for that gap instead of leaving the button stuck on "playing" while
+  // it's mute -- the stream itself keeps running, only the UI waits.
+  async function rebufferForDelayIncrease() {
+    const requestId = ++playRequestId;
+    isPlaying.set(false);
+    isLoading.set(true);
+    await waitForDelayBuffer();
+    if (requestId !== playRequestId) return;
+    isPlaying.set(true);
+    isLoading.set(false);
+  }
+
+  $effect(() => {
+    const value = $delaySeconds;
+    audioEngine.setDelaySeconds(value);
+    if ($currentStation) setStationDelay($currentStation.id, value);
+    if (get(isPlaying) && Date.now() - streamStartedAt < value * 1000) {
+      rebufferForDelayIncrease();
+    }
+  });
+
+  $effect(() => {
+    audioEngine.setGain($volume);
+  });
 
   function handleSelect(station) {
     currentStation.set(station);
