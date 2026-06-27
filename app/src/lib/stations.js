@@ -62,7 +62,10 @@ const DEBUG_TONE_STATION = {
   id: 'debugtone',
   name: 'Test Tone (debug)',
   freq: '440Hz same-origin file',
-  stream: '/test-tone.mp3',
+  // GitHub Pages serves the deployed build under /relatores/, not domain
+  // root -- a hardcoded '/test-tone.mp3' 404s there. BASE_URL is '/' in dev
+  // and '/relatores/' in production, matching vite.config.js.
+  stream: `${import.meta.env.BASE_URL}test-tone.mp3`,
   uuid: 'debug-tone',
 };
 
