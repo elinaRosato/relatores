@@ -61,20 +61,6 @@ describe('crossorigin', () => {
   });
 });
 
-describe('iOS WebKit direct-output leak guard', () => {
-  // Some WebKit versions let a media element wrapped by createMediaElementSource
-  // leak its native audio output straight to the speaker -- bypassing the delay
-  // and analyser nodes entirely -- whenever the AudioContext is suspended or
-  // interrupted, which happens often on iOS. Muting the element silences that
-  // leak; it does not affect the WebAudio-graph output, which is driven by the
-  // gain node and stays fully audible.
-  it('mutes the underlying audio element so a leaked direct-output path stays silent', async () => {
-    const { play, getAudioElement } = await import('./audioEngine.js');
-    await play(testStation);
-    expect(getAudioElement().muted).toBe(true);
-  });
-});
-
 describe('delay and gain control', () => {
   it('is a no-op when called before any playback has started', async () => {
     const { setDelaySeconds, setGain } = await import('./audioEngine.js');

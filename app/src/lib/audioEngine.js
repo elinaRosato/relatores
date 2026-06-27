@@ -22,12 +22,6 @@ function ensureAudioContext() {
 
   audioEl = new Audio();
   audioEl.crossOrigin = 'anonymous';
-  // Some WebKit versions leak this element's native audio straight to the
-  // speaker -- bypassing delayNode/analyserNode -- whenever the AudioContext
-  // is suspended/interrupted, which happens often on iOS. Muting it closes
-  // that leak; the WebAudio-graph output is driven by gainNode and is
-  // unaffected by the element's own muted/volume state.
-  audioEl.muted = true;
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   sourceNode = audioCtx.createMediaElementSource(audioEl);
