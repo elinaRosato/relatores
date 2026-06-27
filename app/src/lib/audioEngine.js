@@ -17,15 +17,33 @@ function startDebugPoll() {
   debugPollStarted = true;
   setInterval(() => {
     if (!audioCtx) return;
+    let analyserStats = 'no analyser';
+    if (analyserNode) {
+      const buf = new Uint8Array(analyserNode.frequencyBinCount);
+      analyserNode.getByteTimeDomainData(buf);
+      let min = 255, max = 0;
+      for (let i = 0; i < buf.length; i++) {
+        if (buf[i] < min) min = buf[i];
+        if (buf[i] > max) max = buf[i];
+      }
+      analyserStats = `min=${min} max=${max} deviationFromSilence=${max - min}`;
+    }
     debugLog(
       'poll: ctxState=', audioCtx.state,
       'ctxTime=', audioCtx.currentTime.toFixed(2),
       'delayTime=', delayNode ? delayNode.delayTime.value : null,
       'audioElPaused=', audioEl ? audioEl.paused : null,
       'audioElMuted=', audioEl ? audioEl.muted : null,
-      'audioElReadyState=', audioEl ? audioEl.readyState : null
+      'audioElReadyState=', audioEl ? audioEl.readyState : null,
+      'audioElInDom=', audioEl ? document.body.contains(audioEl) : null,
+      'analyser=', analyserStats
     );
   }, 1000);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => debugLog('window error event', e.message, e.error));
+  window.addEventListener('unhandledrejection', (e) => debugLog('unhandledrejection', e.reason));
 }
 
 function attachBackgroundAudioSupport() {
@@ -57,13 +75,20 @@ function ensureAudioContext() {
   document.body.appendChild(audioEl);
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  debugLog('AudioContext created, initial ctxState=', audioCtx.state);
-  sourceNode = audioCtx.createMediaElementSource(audioEl);
-  gainNode = audioCtx.createGain();
-  analyserNode = audioCtx.createAnalyser();
-  analyserNode.fftSize = 256;
+  debugLog('AudioContext created, initial ctxState=', audioCtx.state, 'sampleRate=', audioCtx.sampleRate);
+  try {
+    sourceNode = audioCtx.createMediaElementSource(audioEl);
+    debugLog('createMediaElementSource OK');
+    gainNode = audioCtx.createGain();
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 256;
 
-  gainNode.connect(analyserNode);
+    gainNode.connect(analyserNode);
+    debugLog('graph nodes created and gainNode->analyserNode connected OK');
+  } catch (err) {
+    debugLog('EXCEPTION during node creation/connection', err && err.name, err && err.message);
+    throw err;
+  }
 
   attachBackgroundAudioSupport();
   startDebugPoll();
@@ -76,14 +101,20 @@ function ensureAudioContext() {
 // resurface and play back before the freshly-requested stream arrives.
 function rebuildDelayNode() {
   const currentDelay = delayNode ? delayNode.delayTime.value : 0;
-  if (delayNode) {
-    sourceNode.disconnect();
-    delayNode.disconnect();
+  try {
+    if (delayNode) {
+      sourceNode.disconnect();
+      delayNode.disconnect();
+    }
+    delayNode = audioCtx.createDelay(65);
+    delayNode.delayTime.value = currentDelay;
+    sourceNode.connect(delayNode);
+    delayNode.connect(gainNode);
+    debugLog('rebuildDelayNode OK, sourceNode->delayNode->gainNode connected');
+  } catch (err) {
+    debugLog('EXCEPTION in rebuildDelayNode', err && err.name, err && err.message);
+    throw err;
   }
-  delayNode = audioCtx.createDelay(65);
-  delayNode.delayTime.value = currentDelay;
-  sourceNode.connect(delayNode);
-  delayNode.connect(gainNode);
 }
 
 export function isContextCreated() {
