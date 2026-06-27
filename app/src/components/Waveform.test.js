@@ -180,4 +180,30 @@ describe('Waveform canvas sizing', () => {
     window.dispatchEvent(new Event('resize'));
     expect(fakeCtx.scale.mock.calls.length).toBe(callsBefore);
   });
+
+  // Resizing a canvas (setting .width/.height) wipes its bitmap. Mobile
+  // browsers fire `resize` on scroll as the address bar collapses/expands,
+  // so without a repaint here the flat-line idle state goes blank until the
+  // next play() restarts the rAF loop.
+  it('redraws the flat line after a resize while paused, instead of leaving the canvas blank', () => {
+    currentStation.set(fakeStation);
+    isPlaying.set(false);
+    render(Waveform);
+    fakeCtx.moveTo.mockClear();
+    fakeCtx.lineTo.mockClear();
+    fakeCtx.stroke.mockClear();
+    window.dispatchEvent(new Event('resize'));
+    expect(fakeCtx.moveTo).toHaveBeenCalled();
+    expect(fakeCtx.stroke).toHaveBeenCalled();
+  });
+
+  it('does not redraw on resize while playing, leaving the next animation frame to repaint', () => {
+    currentStation.set(fakeStation);
+    isPlaying.set(true);
+    render(Waveform);
+    fakeCtx.moveTo.mockClear();
+    fakeCtx.stroke.mockClear();
+    window.dispatchEvent(new Event('resize'));
+    expect(fakeCtx.moveTo).not.toHaveBeenCalled();
+  });
 });

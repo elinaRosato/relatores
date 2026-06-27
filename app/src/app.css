@@ -6,6 +6,11 @@
   padding: 0;
 }
 
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
 :root {
   --bg: #0a0f1e;
   --surface: #111827;

@@ -7,11 +7,24 @@
   let ctx = null;
   let frameId = null;
 
+  // Setting canvas.width/height wipes the bitmap. Mobile browsers fire
+  // `resize` on scroll as the address bar collapses/expands, so without a
+  // repaint here the idle flat-line goes blank until the next play()
+  // restarts the rAF loop. Skip it while playing -- the loop repaints anyway.
   function resizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = canvas.offsetWidth * dpr;
     canvas.height = canvas.offsetHeight * dpr;
     ctx.scale(dpr, dpr);
+    if (!$isPlaying) paintIdleState();
+  }
+
+  function paintIdleState() {
+    if ($currentStation) {
+      drawFlatLine();
+    } else {
+      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+    }
   }
 
   function strokeGradientPath(drawPath) {
@@ -70,11 +83,7 @@
       frameId = null;
     }
     if (!ctx) return;
-    if ($currentStation) {
-      drawFlatLine();
-    } else {
-      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
-    }
+    paintIdleState();
   }
 
   $effect(() => {
