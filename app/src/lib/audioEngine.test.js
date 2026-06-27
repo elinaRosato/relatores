@@ -62,6 +62,19 @@ describe('crossorigin', () => {
     await play(testStation);
     expect(getAudioElement().crossOrigin).toBe('anonymous');
   });
+
+  it('attaches the audio element to the document (iOS requires this for createMediaElementSource to carry real audio)', async () => {
+    const { play, getAudioElement } = await import('./audioEngine.js');
+    await play(testStation);
+    expect(document.body.contains(getAudioElement())).toBe(true);
+  });
+
+  it('keeps the attached audio element visually hidden without display:none', async () => {
+    const { play, getAudioElement } = await import('./audioEngine.js');
+    await play(testStation);
+    expect(getAudioElement().style.display).not.toBe('none');
+    expect(getAudioElement().style.opacity).toBe('0');
+  });
 });
 
 describe('delay and gain control', () => {

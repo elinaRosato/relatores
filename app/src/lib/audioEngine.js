@@ -47,6 +47,14 @@ function ensureAudioContext() {
 
   audioEl = new Audio();
   audioEl.crossOrigin = 'anonymous';
+  // iOS Safari has a known history of createMediaElementSource() silently
+  // failing to route real audio into the graph when the element is never
+  // attached to the document -- the node is created, the context stays
+  // "running", but nothing reaches the analyser/destination while the
+  // element keeps playing through its own native output. Visually hidden,
+  // not display:none (which can throttle media decode in some engines).
+  audioEl.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(audioEl);
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   debugLog('AudioContext created, initial ctxState=', audioCtx.state);
