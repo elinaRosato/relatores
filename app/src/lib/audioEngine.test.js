@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 class FakeAudioContext {
   constructor() {
     this.state = 'running';
+    this.currentTime = 0;
     this.destination = {};
   }
   createMediaElementSource() {
@@ -15,7 +16,9 @@ class FakeAudioContext {
   createAnalyser() {
     return { connect: vi.fn(), disconnect: vi.fn(), fftSize: 0 };
   }
-  resume() {}
+  resume() {
+    return Promise.resolve();
+  }
 }
 
 beforeEach(() => {
@@ -139,7 +142,7 @@ describe('background audio', () => {
     await play(testStation);
     const ctxInstance = window.AudioContext.mock.results[0].value;
     ctxInstance.state = 'suspended';
-    ctxInstance.resume = vi.fn();
+    ctxInstance.resume = vi.fn(() => Promise.resolve());
     document.dispatchEvent(new Event('visibilitychange'));
     expect(ctxInstance.resume).toHaveBeenCalled();
   });
