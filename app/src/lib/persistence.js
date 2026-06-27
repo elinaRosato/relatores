@@ -1,5 +1,5 @@
-const DELAY_PREFIX = 'relatores:delay:';
-const LAST_STATION_KEY = 'relatores:lastStation';
+const DELAY_PREFIX = 'relata:delay:';
+const LAST_STATION_KEY = 'relata:lastStation';
 
 export function getStationDelay(stationId) {
   const raw = localStorage.getItem(DELAY_PREFIX + stationId);

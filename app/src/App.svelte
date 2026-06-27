@@ -112,7 +112,7 @@
 <div class="page-atmosphere" aria-hidden="true"></div>
 
 <header>
-  <div class="logo">RE<span>LATORES</span></div>
+  <div class="logo">RE<span>LATA</span></div>
   <div class="live-badge">
     <div class="live-dot"></div>
     Stream en vivo
@@ -209,7 +209,7 @@
     <div class="support-icon">☕</div>
     <div class="support-copy">
       <p class="support-title">¿Te sirvió para el Mundial?</p>
-      <p class="support-text">Invitame un café — mantiene Relatores online y sin publicidad.</p>
+      <p class="support-text">Invitame un café — mantiene Relata online y sin publicidad.</p>
     </div>
     <a href="https://www.buymeacoffee.com/elinarosato" target="_blank" rel="noopener noreferrer">
       <img
@@ -222,6 +222,6 @@
 </main>
 
 <footer>
-  Relatores — Hecho con amor para los argentinos en el mundo 🇦🇷<br />
+  Relata — Hecho con amor para los argentinos en el mundo 🇦🇷<br />
   <span>Las radios son públicas. Si una no carga puede ser por restricciones de CORS del emisor.</span>
 </footer>
