@@ -54,24 +54,6 @@ const BUILT_IN_STATIONS = [
   },
 ];
 
-// TEMP DEBUG -- remove once the iOS investigation is done. Isolates whether
-// silence reaching the analyser is specific to cross-origin live streams
-// (this file is same-origin and finite) or a problem in our own graph code
-// regardless of source. Visit with ?debugtone=1 to show it in the grid.
-const DEBUG_TONE_STATION = {
-  id: 'debugtone',
-  name: 'Test Tone (debug)',
-  freq: '440Hz same-origin file',
-  // GitHub Pages serves the deployed build under /relatores/, not domain
-  // root -- a hardcoded '/test-tone.mp3' 404s there. BASE_URL is '/' in dev
-  // and '/relatores/' in production, matching vite.config.js.
-  stream: `${import.meta.env.BASE_URL}test-tone.mp3`,
-  uuid: 'debug-tone',
-};
-
 export async function fetchStations() {
-  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debugtone')) {
-    return [DEBUG_TONE_STATION, ...BUILT_IN_STATIONS];
-  }
   return BUILT_IN_STATIONS;
 }

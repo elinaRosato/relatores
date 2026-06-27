@@ -63,7 +63,7 @@ describe('crossorigin', () => {
     expect(getAudioElement().crossOrigin).toBe('anonymous');
   });
 
-  it('attaches the audio element to the document (iOS requires this for createMediaElementSource to carry real audio)', async () => {
+  it('attaches the audio element to the document', async () => {
     const { play, getAudioElement } = await import('./audioEngine.js');
     await play(testStation);
     expect(document.body.contains(getAudioElement())).toBe(true);

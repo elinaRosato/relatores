@@ -7,55 +7,12 @@ let analyserNode = null;
 
 let resumeListenerAttached = false;
 
-// TEMP DEBUG -- remove once the iOS investigation is done.
-function debugLog(...args) {
-  console.log('[audio-debug]', performance.now().toFixed(0) + 'ms', ...args);
-}
-let debugPollStarted = false;
-function startDebugPoll() {
-  if (debugPollStarted) return;
-  debugPollStarted = true;
-  setInterval(() => {
-    if (!audioCtx) return;
-    let analyserStats = 'no analyser';
-    if (analyserNode) {
-      const buf = new Uint8Array(analyserNode.frequencyBinCount);
-      analyserNode.getByteTimeDomainData(buf);
-      let min = 255, max = 0;
-      for (let i = 0; i < buf.length; i++) {
-        if (buf[i] < min) min = buf[i];
-        if (buf[i] > max) max = buf[i];
-      }
-      analyserStats = `min=${min} max=${max} deviationFromSilence=${max - min}`;
-    }
-    debugLog(
-      'poll: ctxState=', audioCtx.state,
-      'ctxTime=', audioCtx.currentTime.toFixed(2),
-      'delayTime=', delayNode ? delayNode.delayTime.value : null,
-      'audioElPaused=', audioEl ? audioEl.paused : null,
-      'audioElMuted=', audioEl ? audioEl.muted : null,
-      'audioElReadyState=', audioEl ? audioEl.readyState : null,
-      'audioElInDom=', audioEl ? document.body.contains(audioEl) : null,
-      'analyser=', analyserStats
-    );
-  }, 1000);
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('error', (e) => debugLog('window error event', e.message, e.error));
-  window.addEventListener('unhandledrejection', (e) => debugLog('unhandledrejection', e.reason));
-}
-
 function attachBackgroundAudioSupport() {
   if (resumeListenerAttached) return;
   resumeListenerAttached = true;
   document.addEventListener('visibilitychange', () => {
-    debugLog('visibilitychange, visibilityState=', document.visibilityState, 'ctxState=', audioCtx && audioCtx.state);
     if (audioCtx && audioCtx.state === 'suspended') {
-      audioCtx.resume().then(
-        () => debugLog('visibilitychange resume() resolved, ctxState=', audioCtx.state),
-        (err) => debugLog('visibilitychange resume() REJECTED', err)
-      );
+      audioCtx.resume();
     }
   });
 }
@@ -65,33 +22,22 @@ function ensureAudioContext() {
 
   audioEl = new Audio();
   audioEl.crossOrigin = 'anonymous';
-  // iOS Safari has a known history of createMediaElementSource() silently
-  // failing to route real audio into the graph when the element is never
-  // attached to the document -- the node is created, the context stays
-  // "running", but nothing reaches the analyser/destination while the
-  // element keeps playing through its own native output. Visually hidden,
-  // not display:none (which can throttle media decode in some engines).
+  // Attached to the document (visually hidden, not display:none, which can
+  // throttle media decode in some engines) -- some WebKit versions have had
+  // trouble routing real audio into createMediaElementSource() from a
+  // detached element.
   audioEl.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none;';
   document.body.appendChild(audioEl);
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  debugLog('AudioContext created, initial ctxState=', audioCtx.state, 'sampleRate=', audioCtx.sampleRate);
-  try {
-    sourceNode = audioCtx.createMediaElementSource(audioEl);
-    debugLog('createMediaElementSource OK');
-    gainNode = audioCtx.createGain();
-    analyserNode = audioCtx.createAnalyser();
-    analyserNode.fftSize = 256;
+  sourceNode = audioCtx.createMediaElementSource(audioEl);
+  gainNode = audioCtx.createGain();
+  analyserNode = audioCtx.createAnalyser();
+  analyserNode.fftSize = 256;
 
-    gainNode.connect(analyserNode);
-    debugLog('graph nodes created and gainNode->analyserNode connected OK');
-  } catch (err) {
-    debugLog('EXCEPTION during node creation/connection', err && err.name, err && err.message);
-    throw err;
-  }
+  gainNode.connect(analyserNode);
 
   attachBackgroundAudioSupport();
-  startDebugPoll();
 }
 
 // DelayNode has no public flush/clear API, and disconnecting it (in pause())
@@ -101,20 +47,14 @@ function ensureAudioContext() {
 // resurface and play back before the freshly-requested stream arrives.
 function rebuildDelayNode() {
   const currentDelay = delayNode ? delayNode.delayTime.value : 0;
-  try {
-    if (delayNode) {
-      sourceNode.disconnect();
-      delayNode.disconnect();
-    }
-    delayNode = audioCtx.createDelay(65);
-    delayNode.delayTime.value = currentDelay;
-    sourceNode.connect(delayNode);
-    delayNode.connect(gainNode);
-    debugLog('rebuildDelayNode OK, sourceNode->delayNode->gainNode connected');
-  } catch (err) {
-    debugLog('EXCEPTION in rebuildDelayNode', err && err.name, err && err.message);
-    throw err;
+  if (delayNode) {
+    sourceNode.disconnect();
+    delayNode.disconnect();
   }
+  delayNode = audioCtx.createDelay(65);
+  delayNode.delayTime.value = currentDelay;
+  sourceNode.connect(delayNode);
+  delayNode.connect(gainNode);
 }
 
 export function isContextCreated() {
@@ -126,15 +66,8 @@ export function getAudioElement() {
 }
 
 export async function play(station) {
-  debugLog('play() called for', station.id, 'ctxState (pre-ensure)=', audioCtx && audioCtx.state);
   ensureAudioContext();
-  if (audioCtx.state === 'suspended') {
-    debugLog('ctx suspended at play(), calling resume()');
-    audioCtx.resume().then(
-      () => debugLog('play() resume() resolved, ctxState=', audioCtx.state),
-      (err) => debugLog('play() resume() REJECTED', err)
-    );
-  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   rebuildDelayNode();
 
   // delayNode keeps buffering audio for delayTime seconds after the source
@@ -144,33 +77,21 @@ export async function play(station) {
 
   if (navigator.audioSession) {
     navigator.audioSession.type = 'play';
-    debugLog('navigator.audioSession.type set to play');
-  } else {
-    debugLog('navigator.audioSession not available');
   }
 
   audioEl.src = station.stream;
   audioEl.load();
-  debugLog('calling audioEl.play(), ctxState=', audioCtx.state);
-  return audioEl.play().then(
-    () => debugLog('audioEl.play() RESOLVED, ctxState=', audioCtx.state, 'delayTime=', delayNode.delayTime.value),
-    (err) => {
-      debugLog('audioEl.play() REJECTED', err);
-      throw err;
-    }
-  );
+  return audioEl.play();
 }
 
 export function pause() {
   if (!audioEl) return;
-  debugLog('pause() called, ctxState=', audioCtx && audioCtx.state);
   audioEl.pause();
   audioEl.src = '';
   if (analyserNode) analyserNode.disconnect();
 }
 
 export function setDelaySeconds(seconds) {
-  debugLog('setDelaySeconds', seconds, 'ctxState=', audioCtx && audioCtx.state, 'ctxTime=', audioCtx && audioCtx.currentTime.toFixed(2));
   if (delayNode) delayNode.delayTime.value = seconds;
 }
 
