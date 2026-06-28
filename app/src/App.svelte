@@ -112,7 +112,10 @@
 <div class="page-atmosphere" aria-hidden="true"></div>
 
 <header>
-  <div class="logo">RE<span>LATA</span></div>
+  <div class="logo">
+    <img class="logo-icon" src="/relata_logo.png" alt="" />
+    RE<span>LATA</span>
+  </div>
   <div class="live-badge">
     <div class="live-dot"></div>
     Stream en vivo
@@ -121,15 +124,30 @@
 
 <main>
   <div class="hero">
-    <span class="hero-badge">🇦🇷 Para los argentinos en el mundo</span>
-    <h1 class="hero-title">El partido<br />con <em>tu</em> voz</h1>
-    <p class="hero-sub">
-      Poné el partido en la tele en silencio, elegí una radio argentina y ajustá el delay hasta
-      que el audio quede perfecto con la imagen. Nada más.
-    </p>
+    <div class="hero-inner">
+      <div class="hero-text">
+        <span class="hero-badge">🇦🇷 Para los argentinos en el mundo</span>
+        <h1 class="hero-title">El partido<br />con <em>tu</em> voz</h1>
+        <p class="hero-sub">
+          Poné el partido en la tele en silencio, elegí una radio argentina y ajustá el delay hasta
+          que el audio quede perfecto con la imagen. Nada más.
+        </p>
 
-    <p class="section-label">Elegí tu radio</p>
-    <StationGrid {stations} currentStationId={$currentStation?.id ?? null} onSelect={handleSelect} />
+        <div class="hero-cta">
+          <a class="btn-primary" href="#stations-section">Elegí tu radio</a>
+          <a class="btn-secondary" href="#howto">Cómo funciona</a>
+        </div>
+      </div>
+
+      <img class="hero-image" src="/hero_image.png" alt="La app Relata mostrando una radio en vivo con el delay ajustado, con un hincha argentino festejando de fondo" />
+    </div>
+  </div>
+
+  <div class="stations-section" id="stations-section">
+    <div class="stations-inner">
+      <p class="section-label">Elegí tu radio</p>
+      <StationGrid {stations} currentStationId={$currentStation?.id ?? null} onSelect={handleSelect} />
+    </div>
   </div>
 
   <div class="player-panel" class:live={$isPlaying}>
@@ -193,7 +211,7 @@
     </div>
   </div>
 
-  <div class="howto">
+  <div class="howto" id="howto">
     <p class="howto-title">Cómo usarlo</p>
     <ol class="howto-steps">
       <li><span class="howto-num">1</span>Silenciá el audio de tu tele o stream.</li>
