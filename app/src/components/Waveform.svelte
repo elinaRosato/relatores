@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { isPlaying, currentStation } from '../lib/stores.js';
   import { getAnalyser } from '../lib/audioEngine.js';
+  import { getWaveformData } from '../lib/iosStreamEngine.js';
 
   let canvas;
   let ctx = null;
@@ -48,18 +49,22 @@
   }
 
   function draw() {
-    const analyser = getAnalyser();
-    if (!ctx || !analyser) return;
+    if (!ctx) return;
     frameId = requestAnimationFrame(draw);
 
-    const bufLen = analyser.frequencyBinCount;
-    const dataArr = new Uint8Array(bufLen);
-    analyser.getByteTimeDomainData(dataArr);
+    const analyser = getAnalyser();
+    let dataArr;
+    if (analyser) {
+      dataArr = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteTimeDomainData(dataArr);
+    } else {
+      dataArr = getWaveformData();
+    }
 
     strokeGradientPath((w, h) => {
-      const sliceW = w / bufLen;
+      const sliceW = w / dataArr.length;
       let x = 0;
-      for (let i = 0; i < bufLen; i++) {
+      for (let i = 0; i < dataArr.length; i++) {
         const v = dataArr[i] / 128.0;
         const y = (v * h) / 2;
         if (i === 0) ctx.moveTo(x, y);

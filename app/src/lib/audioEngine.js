@@ -1,9 +1,15 @@
+import { isIOS, supportsWebCodecsAudio } from './platform.js';
+import * as iosEngine from './iosStreamEngine.js';
+
+const USE_IOS_ENGINE = isIOS() && supportsWebCodecsAudio();
+
 let audioCtx = null;
 let audioEl = null;
 let sourceNode = null;
 let delayNode = null;
 let gainNode = null;
 let analyserNode = null;
+let currentDelaySeconds = 0;
 
 let resumeListenerAttached = false;
 
@@ -57,7 +63,12 @@ function rebuildDelayNode() {
   delayNode.connect(gainNode);
 }
 
+export function isIOSEngine() {
+  return USE_IOS_ENGINE;
+}
+
 export function isContextCreated() {
+  if (USE_IOS_ENGINE) return iosEngine.isContextCreated();
   return audioCtx !== null;
 }
 
@@ -65,7 +76,10 @@ export function getAudioElement() {
   return audioEl;
 }
 
-export async function play(station) {
+export async function play(station, onFatalError) {
+  if (USE_IOS_ENGINE) {
+    return iosEngine.play(station, currentDelaySeconds, onFatalError);
+  }
   ensureAudioContext();
   if (audioCtx.state === 'suspended') audioCtx.resume();
   rebuildDelayNode();
@@ -85,6 +99,10 @@ export async function play(station) {
 }
 
 export function pause() {
+  if (USE_IOS_ENGINE) {
+    iosEngine.pause();
+    return;
+  }
   if (!audioEl) return;
   audioEl.pause();
   audioEl.src = '';
@@ -92,14 +110,24 @@ export function pause() {
 }
 
 export function setDelaySeconds(seconds) {
+  currentDelaySeconds = seconds;
+  if (USE_IOS_ENGINE) {
+    iosEngine.setDelaySeconds(seconds);
+    return;
+  }
   if (delayNode) delayNode.delayTime.value = seconds;
 }
 
 export function getDelayTimeValue() {
+  if (USE_IOS_ENGINE) return currentDelaySeconds;
   return delayNode ? delayNode.delayTime.value : 0;
 }
 
 export function setGain(value) {
+  if (USE_IOS_ENGINE) {
+    iosEngine.setGain(value);
+    return;
+  }
   if (gainNode) gainNode.gain.value = value;
 }
 
@@ -108,5 +136,6 @@ export function getGainValue() {
 }
 
 export function getAnalyser() {
+  if (USE_IOS_ENGINE) return null;
   return analyserNode;
 }
