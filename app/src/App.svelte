@@ -10,6 +10,8 @@
   import { getLastStationId, setLastStationId, getStationDelay, setStationDelay } from './lib/persistence.js';
   import * as audioEngine from './lib/audioEngine.js';
 
+  const base = import.meta.env.BASE_URL;
+
   let stations = $state([]);
   let delayUnavailable = $state(false);
 
@@ -117,7 +119,7 @@
 
 <header>
   <div class="logo">
-    <img class="logo-icon" src="/relata_logo.png" alt="" />
+    <img class="logo-icon" src="{base}relata_logo.png" alt="" />
     RE<span>LATA</span>
   </div>
   <div class="live-badge">
@@ -143,7 +145,7 @@
         </div>
       </div>
 
-      <img class="hero-image" src="/hero_image.png" alt="La app Relata mostrando una radio en vivo con el delay ajustado, con un hincha argentino festejando de fondo" />
+      <img class="hero-image" src="{base}hero_image.png" alt="La app Relata mostrando una radio en vivo con el delay ajustado, con un hincha argentino festejando de fondo" />
     </div>
   </div>
 
