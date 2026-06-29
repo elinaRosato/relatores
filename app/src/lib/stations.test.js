@@ -12,7 +12,7 @@ describe('fetchStations', () => {
         id: 'rnacional',
         name: 'Radio Nacional',
         freq: 'AM 870 / FM 98.7 — Buenos Aires',
-        stream: 'https://api.re-lata.com/stream/rnacional',
+        stream: 'https://re-lata.com/stream/rnacional',
       },
     ];
     vi.spyOn(global, 'fetch').mockResolvedValue(
@@ -21,7 +21,7 @@ describe('fetchStations', () => {
 
     const result = await fetchStations();
 
-    expect(global.fetch).toHaveBeenCalledWith('https://api.re-lata.com/stations');
+    expect(global.fetch).toHaveBeenCalledWith('/stations');
     expect(result).toEqual({ stations: proxiedStations, proxied: true });
   });
 

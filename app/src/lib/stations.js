@@ -1,5 +1,3 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://api.re-lata.com';
-
 // Stream URLs verified against radio-browser.info (https://www.radio-browser.info/)
 // on 2026-06-24. Used only if the proxy is unreachable — bypasses the proxy
 // entirely (direct upstream URLs), so it still hits the iOS CORS-taint bug
@@ -16,7 +14,12 @@ const FALLBACK_STATIONS = [
 
 export async function fetchStations() {
   try {
-    const response = await fetch(`${API_BASE}/stations`);
+    // Relative, not absolute -- the proxy is only same-origin (and only
+    // actually fixes the iOS taint bug) when reached as a path on
+    // whatever domain is serving this page, via a Worker Route, not a
+    // separate api.* subdomain. See the CORS proxy spec's Architecture
+    // overview correction for why an absolute cross-origin URL was wrong.
+    const response = await fetch('/stations');
     if (!response.ok) throw new Error(`Proxy responded with ${response.status}`);
     const stations = await response.json();
     return { stations, proxied: true };
