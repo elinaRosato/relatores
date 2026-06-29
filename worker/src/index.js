@@ -22,7 +22,14 @@ function handleStations(request) {
 }
 
 async function handleStream(station, request) {
-  const upstreamHeaders = new Headers();
+  const upstreamHeaders = new Headers({
+    // Some upstream CDNs (observed: one station's stream consistently
+    // 403s when fetched from Cloudflare's network, but not from a normal
+    // browser or a residential IP) appear to filter on looking like a
+    // real browser request rather than a bare server-to-server fetch.
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    Referer: 'https://re-lata.com/',
+  });
   const range = request.headers.get('Range');
   if (range) upstreamHeaders.set('Range', range);
 

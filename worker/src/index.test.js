@@ -25,7 +25,7 @@ describe('GET /stations', () => {
     const response = await run(request);
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.length).toBe(7);
+    expect(body.length).toBe(6);
     const nacional = body.find((s) => s.id === 'rnacional');
     expect(nacional.stream).toBe('https://api.re-lata.com/stream/rnacional');
     expect(nacional.name).toBe('Radio Nacional');
@@ -65,6 +65,20 @@ describe('GET /stream/:id', () => {
     const request = new Request('https://api.re-lata.com/stream/doesnotexist');
     const response = await run(request);
     expect(response.status).toBe(404);
+  });
+
+  it('sends a browser-like User-Agent and a Referer to the upstream', async () => {
+    let capturedRequest;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      capturedRequest = new Request(input, init);
+      return new Response('audio-bytes', { headers: { 'Content-Type': 'audio/mpeg' } });
+    });
+
+    const request = new Request('https://api.re-lata.com/stream/rnacional');
+    await run(request);
+
+    expect(capturedRequest.headers.get('User-Agent')).toContain('Mozilla/5.0');
+    expect(capturedRequest.headers.get('Referer')).toBe('https://re-lata.com/');
   });
 
   it('returns a clean 502 with CORS headers when the upstream fetch throws', async () => {
