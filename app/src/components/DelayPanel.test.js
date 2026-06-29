@@ -65,4 +65,13 @@ describe('DelayPanel', () => {
     expect(get(delaySeconds)).toBe(5);
     expect(input.value).toBe('5.0');
   });
+
+  it('disables every control when disabled is true', () => {
+    render(DelayPanel, { props: { disabled: true } });
+    expect(screen.getByLabelText('Delay slider').disabled).toBe(true);
+    expect(screen.getByLabelText('Delay en segundos').disabled).toBe(true);
+    expect(screen.getByText('10s').disabled).toBe(true);
+    expect(screen.getByLabelText('Sumar 0.1 segundos').disabled).toBe(true);
+    expect(screen.getByLabelText('Restar 0.1 segundos').disabled).toBe(true);
+  });
 });

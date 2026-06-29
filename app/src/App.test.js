@@ -16,6 +16,26 @@ vi.mock('./lib/audioEngine.js', () => ({
 }));
 import * as audioEngine from './lib/audioEngine.js';
 
+vi.mock('./lib/stations.js', () => ({
+  fetchStations: vi.fn(),
+}));
+import { fetchStations } from './lib/stations.js';
+
+vi.mock('./lib/platform.js', () => ({
+  isIOS: vi.fn(),
+}));
+import { isIOS } from './lib/platform.js';
+
+const TEST_STATIONS = [
+  { id: 'rnacional', name: 'Radio Nacional', freq: 'AM 870 / FM 98.7 — Buenos Aires', stream: 'https://api.re-lata.com/stream/rnacional' },
+  { id: 'rivadavia', name: 'Radio Rivadavia', freq: 'AM 630 — Buenos Aires', stream: 'https://api.re-lata.com/stream/rivadavia' },
+  { id: 'continental', name: 'Radio Continental', freq: 'AM 590 — Buenos Aires', stream: 'https://api.re-lata.com/stream/continental' },
+  { id: 'la990', name: 'La 990', freq: 'AM 990 — Buenos Aires', stream: 'https://api.re-lata.com/stream/la990' },
+  { id: 'mitre', name: 'Radio Mitre', freq: 'AM 790 — Buenos Aires', stream: 'https://api.re-lata.com/stream/mitre' },
+  { id: 'la100', name: 'La 100', freq: 'FM 99.9 — Buenos Aires', stream: 'https://api.re-lata.com/stream/la100' },
+  { id: 'sport890', name: 'Sport 890', freq: 'AM 890 — Montevideo (UY)', stream: 'https://api.re-lata.com/stream/sport890' },
+];
+
 beforeEach(() => {
   localStorage.clear();
   currentStation.set(null);
@@ -28,6 +48,10 @@ beforeEach(() => {
   audioEngine.pause.mockClear();
   audioEngine.setDelaySeconds.mockClear();
   audioEngine.setGain.mockClear();
+  fetchStations.mockReset();
+  fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: true });
+  isIOS.mockReset();
+  isIOS.mockReturnValue(false);
 
   // jsdom doesn't implement canvas; Waveform's resize/draw logic needs a stub
   // 2d context so mounting it (via App) doesn't throw in tests.
@@ -293,5 +317,34 @@ describe('delay and volume wiring', () => {
     await fireEvent.input(screen.getByLabelText('Volumen'), { target: { value: '0.4' } });
     expect(audioEngine.setGain).toHaveBeenCalledWith(0.4);
     expect(get(volume)).toBe(0.4);
+  });
+});
+
+describe('delay availability on iOS when the proxy is down', () => {
+  it('shows a notice and disables the delay panel when on iOS and the proxy fell back', async () => {
+    isIOS.mockReturnValue(true);
+    fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: false });
+    render(App);
+    await screen.findByText('Radio Nacional');
+    expect(screen.getByText(/delay no está disponible/i)).toBeTruthy();
+    expect(screen.getByLabelText('Delay slider').disabled).toBe(true);
+  });
+
+  it('does not show the notice when the proxy is up, even on iOS', async () => {
+    isIOS.mockReturnValue(true);
+    fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: true });
+    render(App);
+    await screen.findByText('Radio Nacional');
+    expect(screen.queryByText(/delay no está disponible/i)).toBeNull();
+    expect(screen.getByLabelText('Delay slider').disabled).toBe(false);
+  });
+
+  it('does not show the notice on non-iOS even when the proxy fell back', async () => {
+    isIOS.mockReturnValue(false);
+    fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: false });
+    render(App);
+    await screen.findByText('Radio Nacional');
+    expect(screen.queryByText(/delay no está disponible/i)).toBeNull();
+    expect(screen.getByLabelText('Delay slider').disabled).toBe(false);
   });
 });

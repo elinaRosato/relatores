@@ -26,7 +26,13 @@ async function handleStream(station, request) {
   const range = request.headers.get('Range');
   if (range) upstreamHeaders.set('Range', range);
 
-  const upstreamResponse = await fetch(station.upstream, { headers: upstreamHeaders });
+  let upstreamResponse;
+  try {
+    upstreamResponse = await fetch(station.upstream, { headers: upstreamHeaders });
+  } catch (err) {
+    console.warn(`Upstream fetch failed for ${station.id}:`, err);
+    return new Response('Upstream unavailable', { status: 502, headers: withCors(new Headers(), request) });
+  }
 
   const headers = withCors(new Headers(), request);
   headers.set('Content-Type', upstreamResponse.headers.get('Content-Type') ?? 'application/octet-stream');

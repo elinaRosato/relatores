@@ -6,13 +6,17 @@
   import Waveform from './components/Waveform.svelte';
   import { currentStation, isPlaying, isLoading, volume, delaySeconds, setDelay } from './lib/stores.js';
   import { fetchStations } from './lib/stations.js';
+  import { isIOS } from './lib/platform.js';
   import { getLastStationId, setLastStationId, getStationDelay, setStationDelay } from './lib/persistence.js';
   import * as audioEngine from './lib/audioEngine.js';
 
   let stations = $state([]);
+  let delayUnavailable = $state(false);
 
   onMount(async () => {
-    stations = await fetchStations();
+    const result = await fetchStations();
+    stations = result.stations;
+    delayUnavailable = isIOS() && !result.proxied;
     const lastId = getLastStationId();
     const restored = stations.find((s) => s.id === lastId);
     if (restored) {
@@ -186,7 +190,13 @@
 
     <Waveform />
 
-    <DelayPanel />
+    {#if delayUnavailable}
+      <p class="delay-unavailable-notice">
+        El delay no está disponible en iPhone/iPad por el momento. Probá desde una computadora o un dispositivo Android.
+      </p>
+    {/if}
+
+    <DelayPanel disabled={delayUnavailable} />
 
     <div class="volume-row">
       <svg class="vol-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">

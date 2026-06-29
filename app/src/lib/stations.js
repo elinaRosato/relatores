@@ -18,9 +18,10 @@ export async function fetchStations() {
   try {
     const response = await fetch(`${API_BASE}/stations`);
     if (!response.ok) throw new Error(`Proxy responded with ${response.status}`);
-    return await response.json();
+    const stations = await response.json();
+    return { stations, proxied: true };
   } catch (err) {
     console.warn('Falling back to built-in station list:', err);
-    return FALLBACK_STATIONS;
+    return { stations: FALLBACK_STATIONS, proxied: false };
   }
 }
