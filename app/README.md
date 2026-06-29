@@ -9,7 +9,7 @@ Relatores plays an Argentine radio stream (*relato*) through a delay you control
 - [Svelte 5](https://svelte.dev/) + [Vite](https://vitejs.dev/)
 - Web Audio API (`DelayNode`) for the adjustable audio delay
 - Vitest + `@testing-library/svelte` for tests
-- No backend yet — stations are streamed to directly from the browser, so a station only  works here if its stream URL sends permissive CORS headers
+- Stations are proxied same-origin through a Cloudflare Worker (`../worker/`) — fixes iOS Safari/WebKit treating cross-origin radio audio as CORS-tainted (silent `DelayNode` output), and removes the dependency on each station's stream sending permissive CORS headers
 
 ## Getting started
 
@@ -36,7 +36,7 @@ npm run dev      # starts the Vite dev server
 src/
   lib/
     audioEngine.js   # AudioContext/DelayNode graph: play, pause, delay, gain, analyser
-    stations.js       # Station registry (name, frequency, stream URL)
+    stations.js       # Station registry — fetched from the proxy, falls back to a built-in list
     stores.js         # Svelte stores: current station, play/loading state, delay, volume
     persistence.js    # localStorage: last station, per-station delay
   components/

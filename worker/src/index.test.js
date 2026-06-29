@@ -66,6 +66,18 @@ describe('GET /stream/:id', () => {
     const response = await run(request);
     expect(response.status).toBe(404);
   });
+
+  it('returns a clean 502 with CORS headers when the upstream fetch throws', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
+
+    const request = new Request('https://api.re-lata.com/stream/rnacional', {
+      headers: { Origin: 'https://re-lata.com' },
+    });
+    const response = await run(request);
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://re-lata.com');
+  });
 });
 
 describe('CORS', () => {

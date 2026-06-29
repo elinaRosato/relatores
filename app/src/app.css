@@ -519,6 +519,23 @@ header {
 .delay-section {
   margin-bottom: 8px;
 }
+.delay-section.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.delay-unavailable-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--gold);
+  background: rgba(245, 197, 24, 0.1);
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
 
 .delay-header {
   display: flex;
