@@ -23,10 +23,13 @@ function handleStations(request) {
 
 async function handleStream(station, request) {
   const upstreamHeaders = new Headers({
-    // Some upstream CDNs (observed: one station's stream consistently
-    // 403s when fetched from Cloudflare's network, but not from a normal
-    // browser or a residential IP) appear to filter on looking like a
-    // real browser request rather than a bare server-to-server fetch.
+    // One station's stream once 403'd consistently when fetched from
+    // Cloudflare's network specifically (not from a normal browser/IP),
+    // then recovered on its own before this change even shipped -- so
+    // this didn't confirm-fix that incident. Kept anyway as cheap,
+    // standard-looking defense: a bare server fetch often omits headers
+    // a real browser always sends, and some upstream CDNs do filter on
+    // exactly that.
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     Referer: 'https://re-lata.com/',
   });
