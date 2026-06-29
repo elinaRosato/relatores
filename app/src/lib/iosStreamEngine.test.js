@@ -226,7 +226,7 @@ describe('getWaveformData', () => {
   it('returns a flat, centered array before any playback', async () => {
     const { getWaveformData } = await import('./iosStreamEngine.js');
     const data = getWaveformData();
-    expect(data).toHaveLength(64);
+    expect(data).toHaveLength(128);
     expect(Array.from(data).every((v) => v === 128)).toBe(true);
   });
 
@@ -237,7 +237,7 @@ describe('getWaveformData', () => {
     await play(testStation, 0);
     const data = getWaveformData();
 
-    expect(data).toHaveLength(64);
+    expect(data).toHaveLength(128);
     // FakeAudioData.copyTo() fills with silence (0), which maps to the
     // centered byte value 128 -- same as true silence would on a real
     // AnalyserNode. This proves the computation path runs and produces

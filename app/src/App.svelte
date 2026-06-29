@@ -140,6 +140,9 @@
       isPlaying.set(false);
       return;
     }
+    // Must run before any await — iOS Safari only grants AudioContext
+    // activation if resume() is initiated in the synchronous user-gesture stack.
+    audioEngine.warmContext();
     await startPlayback(station);
   }
 </script>

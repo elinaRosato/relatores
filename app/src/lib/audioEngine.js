@@ -67,6 +67,10 @@ export function isIOSEngine() {
   return USE_IOS_ENGINE;
 }
 
+export function warmContext() {
+  if (USE_IOS_ENGINE) iosEngine.warmContext();
+}
+
 export function isContextCreated() {
   if (USE_IOS_ENGINE) return iosEngine.isContextCreated();
   return audioCtx !== null;

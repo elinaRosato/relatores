@@ -7,7 +7,7 @@ let currentStation = null;
 let currentOnFatalError = null;
 let delayChangeTimer = null;
 
-const WAVEFORM_SAMPLE_COUNT = 64;
+const WAVEFORM_SAMPLE_COUNT = 128;
 let waveformBytes = new Uint8Array(WAVEFORM_SAMPLE_COUNT).fill(128);
 
 export function getWaveformData() {
@@ -30,6 +30,14 @@ function ensureContext() {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   gainNode = audioCtx.createGain();
   gainNode.connect(audioCtx.destination);
+}
+
+// Must be called synchronously within the user gesture that triggers playback.
+// iOS Safari only grants AudioContext activation if resume() is initiated
+// before any async hop, regardless of whether the context was just created.
+export function warmContext() {
+  ensureContext();
+  if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
 }
 
 export function isContextCreated() {
@@ -57,6 +65,8 @@ export async function play(station, delaySeconds, onFatalError) {
   currentOnFatalError = onFatalError;
   ensureContext();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+  if (navigator.audioSession) navigator.audioSession.type = 'play';
 
   if (currentAbortController) currentAbortController.abort();
   const abortController = new AbortController();
