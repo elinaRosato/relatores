@@ -13,6 +13,7 @@ vi.mock('./lib/audioEngine.js', () => ({
   getAnalyser: vi.fn(),
   getAudioElement: vi.fn(),
   isContextCreated: vi.fn(),
+  isIOSEngine: vi.fn().mockReturnValue(false),
 }));
 import * as audioEngine from './lib/audioEngine.js';
 
@@ -24,8 +25,9 @@ import { fetchStations, getFallbackStreamUrl } from './lib/stations.js';
 
 vi.mock('./lib/platform.js', () => ({
   isIOS: vi.fn(),
+  supportsWebCodecsAudio: vi.fn().mockReturnValue(false),
 }));
-import { isIOS } from './lib/platform.js';
+import { isIOS, supportsWebCodecsAudio } from './lib/platform.js';
 
 const TEST_STATIONS = [
   { id: 'rnacional', name: 'Radio Nacional', freq: 'AM 870 / FM 98.7 — Buenos Aires', stream: 'https://api.re-lata.com/stream/rnacional' },
@@ -57,12 +59,16 @@ beforeEach(() => {
   audioEngine.pause.mockClear();
   audioEngine.setDelaySeconds.mockClear();
   audioEngine.setGain.mockClear();
+  audioEngine.isIOSEngine.mockClear();
+  audioEngine.isIOSEngine.mockReturnValue(false);
   fetchStations.mockReset();
   fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: true });
   getFallbackStreamUrl.mockReset();
   getFallbackStreamUrl.mockImplementation((id) => TEST_FALLBACK_URLS[id]);
   isIOS.mockReset();
   isIOS.mockReturnValue(false);
+  supportsWebCodecsAudio.mockReset();
+  supportsWebCodecsAudio.mockReturnValue(false);
 
   // jsdom doesn't implement canvas; Waveform's resize/draw logic needs a stub
   // 2d context so mounting it (via App) doesn't throw in tests.
@@ -147,7 +153,7 @@ describe('play / pause', () => {
   it('plays the current station and flips isPlaying on click', async () => {
     const playBtn = await renderAndSelectLa100();
     await fireEvent.click(playBtn);
-    expect(audioEngine.play).toHaveBeenCalledWith(expect.objectContaining({ id: 'la100' }));
+    expect(audioEngine.play).toHaveBeenCalledWith(expect.objectContaining({ id: 'la100' }), expect.any(Function));
     expect(get(isPlaying)).toBe(true);
   });
 
@@ -164,7 +170,7 @@ describe('play / pause', () => {
     await fireEvent.click(playBtn);
     await fireEvent.click(screen.getByText('Radio Nacional'));
     expect(audioEngine.play).toHaveBeenCalledTimes(2);
-    expect(audioEngine.play).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'rnacional' }));
+    expect(audioEngine.play).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'rnacional' }), expect.any(Function));
     expect(get(isPlaying)).toBe(true);
   });
 
@@ -185,7 +191,8 @@ describe('play / pause', () => {
     await waitFor(() => expect(get(isPlaying)).toBe(true));
     expect(audioEngine.play).toHaveBeenCalledTimes(2);
     expect(audioEngine.play).toHaveBeenLastCalledWith(
-      expect.objectContaining({ id: 'la100', stream: 'https://direct.example.com/la100' })
+      expect.objectContaining({ id: 'la100', stream: 'https://direct.example.com/la100' }),
+      expect.any(Function)
     );
     expect(screen.queryByText(/no está disponible/i)).toBeNull();
   });
@@ -355,28 +362,27 @@ describe('delay and volume wiring', () => {
   });
 });
 
-describe('delay availability on iOS when the proxy is down', () => {
-  it('shows a notice and disables the delay panel when on iOS and the proxy fell back', async () => {
+describe('delay availability on iOS', () => {
+  it('shows a notice and disables the delay panel when on iOS without WebCodecs support', async () => {
     isIOS.mockReturnValue(true);
-    fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: false });
+    supportsWebCodecsAudio.mockReturnValue(false);
     render(App);
     await screen.findByText('Radio Nacional');
     expect(screen.getByText(/delay no está disponible/i)).toBeTruthy();
     expect(screen.getByLabelText('Delay slider').disabled).toBe(true);
   });
 
-  it('does not show the notice when the proxy is up, even on iOS', async () => {
+  it('does not show the notice when on iOS with WebCodecs support (iOS engine handles delay)', async () => {
     isIOS.mockReturnValue(true);
-    fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: true });
+    supportsWebCodecsAudio.mockReturnValue(true);
     render(App);
     await screen.findByText('Radio Nacional');
     expect(screen.queryByText(/delay no está disponible/i)).toBeNull();
     expect(screen.getByLabelText('Delay slider').disabled).toBe(false);
   });
 
-  it('does not show the notice on non-iOS even when the proxy fell back', async () => {
+  it('does not show the notice on non-iOS', async () => {
     isIOS.mockReturnValue(false);
-    fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: false });
     render(App);
     await screen.findByText('Radio Nacional');
     expect(screen.queryByText(/delay no está disponible/i)).toBeNull();

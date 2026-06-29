@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { isIOS } from './platform.js';
+import { isIOS, supportsWebCodecsAudio } from './platform.js';
 
 const ORIGINAL = {
   userAgent: navigator.userAgent,
@@ -61,5 +61,21 @@ describe('isIOS', () => {
       maxTouchPoints: 5,
     });
     expect(isIOS()).toBe(false);
+  });
+});
+
+describe('supportsWebCodecsAudio', () => {
+  afterEach(() => {
+    delete globalThis.AudioDecoder;
+  });
+
+  it('returns true when AudioDecoder is defined', () => {
+    globalThis.AudioDecoder = class {};
+    expect(supportsWebCodecsAudio()).toBe(true);
+  });
+
+  it('returns false when AudioDecoder is undefined', () => {
+    delete globalThis.AudioDecoder;
+    expect(supportsWebCodecsAudio()).toBe(false);
   });
 });

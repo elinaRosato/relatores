@@ -6,7 +6,7 @@
   import Waveform from './components/Waveform.svelte';
   import { currentStation, isPlaying, isLoading, volume, delaySeconds, setDelay } from './lib/stores.js';
   import { fetchStations, getFallbackStreamUrl } from './lib/stations.js';
-  import { isIOS } from './lib/platform.js';
+  import { isIOS, supportsWebCodecsAudio } from './lib/platform.js';
   import { getLastStationId, setLastStationId, getStationDelay, setStationDelay } from './lib/persistence.js';
   import * as audioEngine from './lib/audioEngine.js';
 
@@ -19,7 +19,7 @@
   onMount(async () => {
     const result = await fetchStations();
     stations = result.stations;
-    delayUnavailable = isIOS() && !result.proxied;
+    delayUnavailable = isIOS() && !supportsWebCodecsAudio();
     const lastId = getLastStationId();
     const restored = stations.find((s) => s.id === lastId);
     if (restored) {
@@ -49,8 +49,8 @@
     });
   }
 
-  async function attemptPlay(station, requestId) {
-    await audioEngine.play(station);
+  async function attemptPlay(station, requestId, onFatalError) {
+    await audioEngine.play(station, onFatalError);
     if (requestId !== playRequestId) return;
     streamStartedAt = Date.now();
     await waitForDelayBuffer();
@@ -63,15 +63,23 @@
     isPlaying.set(false);
     isLoading.set(true);
     playbackError = null;
+
+    function onFatalError(err) {
+      if (requestId !== playRequestId) return;
+      console.warn('Fatal stream error:', err);
+      isPlaying.set(false);
+      playbackError = `${station.name} no está disponible en este momento. Probá de nuevo más tarde o elegí otra radio.`;
+    }
+
     try {
-      await attemptPlay(station, requestId);
+      await attemptPlay(station, requestId, onFatalError);
     } catch (err) {
       if (requestId !== playRequestId) return;
       console.warn('Stream error:', err);
       const fallbackUrl = getFallbackStreamUrl(station.id);
       if (fallbackUrl && fallbackUrl !== station.stream) {
         try {
-          await attemptPlay({ ...station, stream: fallbackUrl }, requestId);
+          await attemptPlay({ ...station, stream: fallbackUrl }, requestId, onFatalError);
           return;
         } catch (fallbackErr) {
           if (requestId !== playRequestId) return;
@@ -105,7 +113,7 @@
     const value = $delaySeconds;
     audioEngine.setDelaySeconds(value);
     if ($currentStation) setStationDelay($currentStation.id, value);
-    if (get(isPlaying) && Date.now() - streamStartedAt < value * 1000) {
+    if (!audioEngine.isIOSEngine() && get(isPlaying) && Date.now() - streamStartedAt < value * 1000) {
       rebufferForDelayIncrease();
     }
   });

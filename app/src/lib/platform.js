@@ -9,3 +9,7 @@ export function isIOS() {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   );
 }
+
+export function supportsWebCodecsAudio() {
+  return typeof AudioDecoder !== 'undefined';
+}
