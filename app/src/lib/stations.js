@@ -9,8 +9,11 @@ const FALLBACK_STATIONS = [
   { id: 'la990', name: 'La 990', freq: 'AM 990 — Buenos Aires', stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/AM990.mp3' },
   { id: 'mitre', name: 'Radio Mitre', freq: 'AM 790 — Buenos Aires', stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/AM790_56AAC.aac' },
   { id: 'la100', name: 'La 100', freq: 'FM 99.9 — Buenos Aires', stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/FM999_56.mp3' },
-  { id: 'sport890', name: 'Sport 890', freq: 'AM 890 — Montevideo (UY)', stream: 'https://alba-uy-sport890-sport890.stream.mediatiquestream.com/index.m3u8' },
 ];
+
+export function getFallbackStreamUrl(id) {
+  return FALLBACK_STATIONS.find((s) => s.id === id)?.stream;
+}
 
 export async function fetchStations() {
   try {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchStations } from './stations.js';
+import { fetchStations, getFallbackStreamUrl } from './stations.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -31,7 +31,7 @@ describe('fetchStations', () => {
     const result = await fetchStations();
 
     expect(result.proxied).toBe(false);
-    expect(result.stations).toHaveLength(7);
+    expect(result.stations).toHaveLength(6);
     const nacional = result.stations.find((s) => s.id === 'rnacional');
     expect(nacional.stream).toBe('https://sa.mp3.icecast.magma.edge-access.net/sc_rad1');
   });
@@ -42,7 +42,7 @@ describe('fetchStations', () => {
     const result = await fetchStations();
 
     expect(result.proxied).toBe(false);
-    expect(result.stations).toHaveLength(7);
+    expect(result.stations).toHaveLength(6);
   });
 
   it('gives every fallback station an id, name, freq, and stream URL', async () => {
@@ -56,5 +56,15 @@ describe('fetchStations', () => {
       expect(typeof s.freq).toBe('string');
       expect(s.stream.startsWith('https://')).toBe(true);
     }
+  });
+});
+
+describe('getFallbackStreamUrl', () => {
+  it('returns the direct upstream URL for a known station id', () => {
+    expect(getFallbackStreamUrl('rnacional')).toBe('https://sa.mp3.icecast.magma.edge-access.net/sc_rad1');
+  });
+
+  it('returns undefined for an unknown station id', () => {
+    expect(getFallbackStreamUrl('doesnotexist')).toBeUndefined();
   });
 });

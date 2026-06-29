@@ -18,8 +18,9 @@ import * as audioEngine from './lib/audioEngine.js';
 
 vi.mock('./lib/stations.js', () => ({
   fetchStations: vi.fn(),
+  getFallbackStreamUrl: vi.fn(),
 }));
-import { fetchStations } from './lib/stations.js';
+import { fetchStations, getFallbackStreamUrl } from './lib/stations.js';
 
 vi.mock('./lib/platform.js', () => ({
   isIOS: vi.fn(),
@@ -33,8 +34,16 @@ const TEST_STATIONS = [
   { id: 'la990', name: 'La 990', freq: 'AM 990 — Buenos Aires', stream: 'https://api.re-lata.com/stream/la990' },
   { id: 'mitre', name: 'Radio Mitre', freq: 'AM 790 — Buenos Aires', stream: 'https://api.re-lata.com/stream/mitre' },
   { id: 'la100', name: 'La 100', freq: 'FM 99.9 — Buenos Aires', stream: 'https://api.re-lata.com/stream/la100' },
-  { id: 'sport890', name: 'Sport 890', freq: 'AM 890 — Montevideo (UY)', stream: 'https://api.re-lata.com/stream/sport890' },
 ];
+
+const TEST_FALLBACK_URLS = {
+  rnacional: 'https://direct.example.com/rnacional',
+  rivadavia: 'https://direct.example.com/rivadavia',
+  continental: 'https://direct.example.com/continental',
+  la990: 'https://direct.example.com/la990',
+  mitre: 'https://direct.example.com/mitre',
+  la100: 'https://direct.example.com/la100',
+};
 
 beforeEach(() => {
   localStorage.clear();
@@ -50,6 +59,8 @@ beforeEach(() => {
   audioEngine.setGain.mockClear();
   fetchStations.mockReset();
   fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: true });
+  getFallbackStreamUrl.mockReset();
+  getFallbackStreamUrl.mockImplementation((id) => TEST_FALLBACK_URLS[id]);
   isIOS.mockReset();
   isIOS.mockReturnValue(false);
 
@@ -157,12 +168,36 @@ describe('play / pause', () => {
     expect(get(isPlaying)).toBe(true);
   });
 
-  it('leaves isPlaying false when the stream fails to start', async () => {
-    audioEngine.play.mockRejectedValueOnce(new Error('boom'));
+  it('leaves isPlaying false and shows an unavailable message when both the stream and its fallback fail', async () => {
+    audioEngine.play.mockRejectedValue(new Error('boom'));
     const playBtn = await renderAndSelectLa100();
-    await fireEvent.click(playBtn);
+    fireEvent.click(playBtn);
+    await waitFor(() => expect(screen.getByText(/no está disponible/i)).toBeTruthy());
     expect(get(isPlaying)).toBe(false);
     expect(get(isLoading)).toBe(false);
+    expect(audioEngine.play).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to the direct upstream URL and still plays if the proxied stream fails', async () => {
+    audioEngine.play.mockRejectedValueOnce(new Error('boom'));
+    const playBtn = await renderAndSelectLa100();
+    fireEvent.click(playBtn);
+    await waitFor(() => expect(get(isPlaying)).toBe(true));
+    expect(audioEngine.play).toHaveBeenCalledTimes(2);
+    expect(audioEngine.play).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 'la100', stream: 'https://direct.example.com/la100' })
+    );
+    expect(screen.queryByText(/no está disponible/i)).toBeNull();
+  });
+
+  it('clears a stale unavailable message when a different station is selected', async () => {
+    audioEngine.play.mockRejectedValue(new Error('boom'));
+    const playBtn = await renderAndSelectLa100();
+    fireEvent.click(playBtn);
+    await waitFor(() => expect(screen.getByText(/no está disponible/i)).toBeTruthy());
+
+    await fireEvent.click(screen.getByText('Radio Nacional'));
+    expect(screen.queryByText(/no está disponible/i)).toBeNull();
   });
 });
 

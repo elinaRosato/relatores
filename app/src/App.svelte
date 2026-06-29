@@ -5,7 +5,7 @@
   import DelayPanel from './components/DelayPanel.svelte';
   import Waveform from './components/Waveform.svelte';
   import { currentStation, isPlaying, isLoading, volume, delaySeconds, setDelay } from './lib/stores.js';
-  import { fetchStations } from './lib/stations.js';
+  import { fetchStations, getFallbackStreamUrl } from './lib/stations.js';
   import { isIOS } from './lib/platform.js';
   import { getLastStationId, setLastStationId, getStationDelay, setStationDelay } from './lib/persistence.js';
   import * as audioEngine from './lib/audioEngine.js';
@@ -14,6 +14,7 @@
 
   let stations = $state([]);
   let delayUnavailable = $state(false);
+  let playbackError = $state(null);
 
   onMount(async () => {
     const result = await fetchStations();
@@ -48,19 +49,38 @@
     });
   }
 
+  async function attemptPlay(station, requestId) {
+    await audioEngine.play(station);
+    if (requestId !== playRequestId) return;
+    streamStartedAt = Date.now();
+    await waitForDelayBuffer();
+    if (requestId !== playRequestId) return;
+    isPlaying.set(true);
+  }
+
   async function startPlayback(station) {
     const requestId = ++playRequestId;
     isPlaying.set(false);
     isLoading.set(true);
+    playbackError = null;
     try {
-      await audioEngine.play(station);
-      if (requestId !== playRequestId) return;
-      streamStartedAt = Date.now();
-      await waitForDelayBuffer();
-      if (requestId !== playRequestId) return;
-      isPlaying.set(true);
+      await attemptPlay(station, requestId);
     } catch (err) {
-      if (requestId === playRequestId) console.warn('Stream error:', err);
+      if (requestId !== playRequestId) return;
+      console.warn('Stream error:', err);
+      const fallbackUrl = getFallbackStreamUrl(station.id);
+      if (fallbackUrl && fallbackUrl !== station.stream) {
+        try {
+          await attemptPlay({ ...station, stream: fallbackUrl }, requestId);
+          return;
+        } catch (fallbackErr) {
+          if (requestId !== playRequestId) return;
+          console.warn('Fallback stream also failed:', fallbackErr);
+        }
+      }
+      if (requestId === playRequestId) {
+        playbackError = `${station.name} no está disponible en este momento. Probá de nuevo más tarde o elegí otra radio.`;
+      }
     } finally {
       if (requestId === playRequestId) isLoading.set(false);
     }
@@ -98,6 +118,7 @@
     currentStation.set(station);
     setLastStationId(station.id);
     setDelay(getStationDelay(station.id));
+    playbackError = null;
     if (get(isPlaying) || get(isLoading)) {
       startPlayback(station);
     }
@@ -189,6 +210,10 @@
         {/if}
       </button>
     </div>
+
+    {#if playbackError}
+      <p class="playback-error-notice">{playbackError}</p>
+    {/if}
 
     <Waveform />
 
