@@ -109,6 +109,7 @@ export async function play(station, delaySeconds, onFatalError) {
   let decoder;
   let configured = false;
   let nextStartTime = null;
+  let firstFrameAudioTime = null; // audio-context time when the first frame is scheduled to play
   let frameTimestampUs = 0;
   let resolveFirstFrame;
   let rejectFirstFrame;
@@ -140,7 +141,10 @@ export async function play(station, delaySeconds, onFatalError) {
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
       source.connect(gainNode);
-      if (nextStartTime === null) nextStartTime = audioCtx.currentTime + delaySeconds;
+      if (nextStartTime === null) {
+        nextStartTime = audioCtx.currentTime + delaySeconds;
+        firstFrameAudioTime = nextStartTime;
+      }
       activeSources.push(source);
       source.onended = () => { activeSources = activeSources.filter((s) => s !== source); };
       source.start(nextStartTime);
@@ -166,17 +170,26 @@ export async function play(station, delaySeconds, onFatalError) {
           //
           // Two-part fix to avoid the "scratched disk" repetition effect:
           //
-          // 1. TIMING: the CDN serves a rolling ~2 s live buffer. Reconnecting immediately
-          //    after download (which completes in ~180 ms) fetches audio that overlaps ~1.8 s
-          //    with what we already scheduled. We wait until ~500 ms of buffered audio
-          //    remains — by then the CDN window has advanced enough to minimise overlap.
-          //    (In tests, fake frames are tiny so bufferRemaining < 0.5 s and waitMs = 0.)
+          // 1. TIMING: wait until ~1.5 s of pre-scheduled audio remains before reconnecting.
+          //    The CDN serves a rolling ~2 s live buffer, so waiting lets its window advance
+          //    before we fetch again — reducing content overlap without Range support.
+          //    1.5 s also provides headroom for cold CDN connections (400-600 ms on mobile).
           //
-          // 2. RANGE: we ask for bytes=N- so the CDN picks up exactly where it left off,
-          //    eliminating any remaining overlap for CDNs that honour byte-range requests
-          //    on live streams (StreamTheWorld advertises Accept-Ranges: bytes).
-          const RECONNECT_AHEAD_S = 0.5;
-          const bufferRemaining = (nextStartTime ?? audioCtx.currentTime) - audioCtx.currentTime;
+          //    IMPORTANT: use `firstFrameAudioTime` (when playback *starts*, not when frames
+          //    are scheduled) to measure remaining buffer. With delay > 0, `nextStartTime` is
+          //    delaySeconds ahead of `currentTime`, which would give a wildly inflated
+          //    bufferRemaining and a correspondingly long wait — during which the CDN's live
+          //    window moves on by delaySeconds, causing a content jump on reconnect.
+          //
+          //    (In tests, fake frames are ~26 ms each so bufferRemaining < 1.5 s → waitMs=0.)
+          //
+          // 2. RANGE: bytes=N- tells the CDN to pick up exactly where we left off, eliminating
+          //    overlap entirely for CDNs that honour byte-range requests on live streams
+          //    (StreamTheWorld advertises Accept-Ranges: bytes).
+          const playStartsAt = firstFrameAudioTime ?? audioCtx.currentTime;
+          const bufferRemaining = (nextStartTime ?? audioCtx.currentTime)
+            - Math.max(audioCtx.currentTime, playStartsAt);
+          const RECONNECT_AHEAD_S = 1.5;
           const waitMs = Math.max(0, (bufferRemaining - RECONNECT_AHEAD_S) * 1000);
           if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
           if (abortController.signal.aborted) break;
