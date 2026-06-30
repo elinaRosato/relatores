@@ -56,7 +56,7 @@ describe('GET /stream/:id', () => {
     const response = await run(request);
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('Content-Type')).toBe('audio/mpeg');
+    expect(response.headers.get('Content-Type')).toBe('application/octet-stream');
     const bytes = new TextDecoder().decode(await response.arrayBuffer());
     expect(bytes).toBe('audio-bytes');
   });

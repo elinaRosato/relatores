@@ -45,7 +45,7 @@ async function handleStream(station, request) {
   }
 
   const headers = withCors(new Headers(), request);
-  headers.set('Content-Type', upstreamResponse.headers.get('Content-Type') ?? 'application/octet-stream');
+  headers.set('Content-Type', 'application/octet-stream');
   for (const name of ['Accept-Ranges', 'Content-Range', 'Content-Length']) {
     const value = upstreamResponse.headers.get(name);
     if (value) headers.set(name, value);
