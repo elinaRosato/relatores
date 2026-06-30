@@ -169,7 +169,7 @@ function buildAdtsFrame({ sampleRate = 44100, channels = 2, payloadSize = 8 } = 
 
 describe('play', () => {
   it('fetches the station stream URL', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -178,7 +178,7 @@ describe('play', () => {
   });
 
   it('creates an AudioBuffer matching the demuxed frame sample rate and channel count for every frame', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -194,7 +194,7 @@ describe('play', () => {
   });
 
   it('assigns the decoded AudioBuffer to each source node before starting it', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -207,7 +207,7 @@ describe('play', () => {
   });
 
   it('resolves once the first frame is scheduled, without waiting for the whole stream', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
 
     await expect(play(testStation, 0)).resolves.toBeUndefined();
@@ -216,7 +216,7 @@ describe('play', () => {
   });
 
   it('schedules the first frame at currentTime + delaySeconds', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
 
     await play(testStation, 5);
@@ -225,7 +225,7 @@ describe('play', () => {
   });
 
   it('schedules each subsequent frame immediately after the previous one ends, for gapless playback', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -264,7 +264,7 @@ describe('play (AAC stream)', () => {
   it('auto-detects ADTS AAC and schedules audio buffers with the correct sample rate and channels', async () => {
     const frame = buildAdtsFrame({ sampleRate: 44100, channels: 1, payloadSize: 8 });
     const twoFrames = new Uint8Array([...frame, ...frame]);
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(twoFrames)));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(twoFrames)));
     const { play } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -278,7 +278,7 @@ describe('play (AAC stream)', () => {
 
 describe('pause', () => {
   it('aborts the in-flight fetch', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, pause } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -289,7 +289,7 @@ describe('pause', () => {
   });
 
   it('stops all scheduled AudioBufferSourceNodes immediately', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, pause } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -302,7 +302,7 @@ describe('pause', () => {
   });
 
   it('stops old sources when play() is called again (delay change restart)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -323,7 +323,7 @@ describe('isContextCreated', () => {
   });
 
   it('is true after play() has run', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, isContextCreated } = await import('./iosStreamEngine.js');
     await play(testStation, 0);
     expect(isContextCreated()).toBe(true);
@@ -339,7 +339,7 @@ describe('getWaveformData', () => {
   });
 
   it('updates from the decoded PCM after a frame is scheduled', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, getWaveformData } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -366,7 +366,7 @@ describe('fatal errors after the first frame', () => {
     }
     globalThis.AudioDecoder = FailingAfterFirstFrameDecoder;
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
     const onFatalError = vi.fn();
 
@@ -399,16 +399,35 @@ describe('fatal errors after the first frame', () => {
     expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'connection dropped' }));
   });
 
-  it('calls onFatalError when the stream closes after the first frame (unexpected end of live stream)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+  it('reconnects transparently when the CDN closes the connection after a segment', async () => {
+    // StreamTheWorld sends ~32 KB then closes. The engine should reconnect
+    // immediately without surfacing an error — pre-scheduled AudioBufferSourceNodes
+    // cover the brief gap.
+    vi.spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))))
+      .mockImplementation(() => Promise.resolve(openStreamResponse(new Uint8Array(0))));
     const { play } = await import('./iosStreamEngine.js');
     const onFatalError = vi.fn();
 
     await play(testStation, 0, onFatalError);
-    await new Promise((resolve) => setTimeout(resolve, 0)); // let the background loop process the done signal
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2); // initial + reconnect
+    expect(onFatalError).not.toHaveBeenCalled();
+  });
+
+  it('calls onFatalError when the reconnect fails after a segment close', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))))
+      .mockImplementation(() => Promise.resolve({ ok: false, status: 503 }));
+    const { play } = await import('./iosStreamEngine.js');
+    const onFatalError = vi.fn();
+
+    await play(testStation, 0, onFatalError);
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(onFatalError).toHaveBeenCalledTimes(1);
-    expect(onFatalError.mock.calls[0][0].message).toMatch(/closed unexpectedly/i);
+    expect(onFatalError.mock.calls[0][0].message).toMatch(/reconnect/i);
   });
 });
 
@@ -455,7 +474,7 @@ describe('setDelaySeconds', () => {
   });
 
   it('restarts playback with the new delay after settling for 300ms', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, setDelaySeconds } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);
@@ -473,7 +492,7 @@ describe('setDelaySeconds', () => {
   });
 
   it('only restarts once after several rapid changes, using the last value', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, setDelaySeconds } = await import('./iosStreamEngine.js');
 
     await play(testStation, 0);

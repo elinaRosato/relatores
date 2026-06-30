@@ -99,11 +99,11 @@ export async function play(station, delaySeconds, onFatalError) {
     throw new Error(`Stream responded with ${response.status}`);
   }
 
-  const mp3Parser = createMp3FrameParser();
-  const aacParser = createAacFrameParser();
+  let mp3Parser = createMp3FrameParser();
+  let aacParser = createAacFrameParser();
   let detectedFormat = null; // 'mp3' | 'aac' | null while probing
   let samplesPerFrame = 1152; // updated on first frame: 1152 for MP3, 1024 for AAC
-  const reader = response.body.getReader();
+  let reader = response.body.getReader();
 
   let decoder;
   let configured = false;
@@ -159,12 +159,26 @@ export async function play(station, delaySeconds, onFatalError) {
       while (!abortController.signal.aborted) {
         const { done, value } = await reader.read();
         if (done) {
-          // Live radio streams never end — a clean close means the connection
-          // was dropped (iOS can truncate audio/mpeg response bodies early).
-          if (!abortController.signal.aborted && firstFrameSettled) {
-            handleFatalError(new Error('Stream connection closed unexpectedly'));
+          if (abortController.signal.aborted) break;
+          if (!firstFrameSettled) break; // 15 s timeout handles the pre-first-frame case
+          // Some CDNs (e.g. StreamTheWorld) send a fixed-size segment (~32 KB) then
+          // close the connection, expecting the client to reconnect immediately.
+          // The <audio> element does this transparently; we must too.
+          // Already-scheduled AudioBufferSourceNodes cover the reconnect window.
+          try {
+            const newResponse = await fetch(station.stream, { signal: abortController.signal });
+            if (!newResponse.ok) {
+              handleFatalError(new Error(`Reconnect failed: ${newResponse.status}`));
+              break;
+            }
+            reader = newResponse.body.getReader();
+            if (detectedFormat === 'mp3') mp3Parser = createMp3FrameParser();
+            else if (detectedFormat === 'aac') aacParser = createAacFrameParser();
+            continue;
+          } catch (err) {
+            if (!abortController.signal.aborted) handleFatalError(err);
+            break;
           }
-          break;
         }
         let frames;
         if (detectedFormat === 'mp3') {
