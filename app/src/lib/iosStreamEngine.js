@@ -7,6 +7,7 @@ let currentStation = null;
 let currentOnFatalError = null;
 let delayChangeTimer = null;
 let activeSources = [];
+let isStreaming = false; // true only after the first frame of a session is scheduled
 
 const WAVEFORM_SAMPLE_COUNT = 128;
 let waveformBytes = new Uint8Array(WAVEFORM_SAMPLE_COUNT).fill(128);
@@ -87,6 +88,7 @@ export async function play(station, delaySeconds, onFatalError) {
   if (currentAbortController) currentAbortController.abort();
   if (delayChangeTimer) { clearTimeout(delayChangeTimer); delayChangeTimer = null; }
   stopAllSources();
+  isStreaming = false;
   const abortController = new AbortController();
   currentAbortController = abortController;
 
@@ -101,15 +103,23 @@ export async function play(station, delaySeconds, onFatalError) {
   let decoder;
   let configured = false;
   let nextStartTime = null;
+  let frameTimestampUs = 0;
   let resolveFirstFrame;
   let rejectFirstFrame;
   let firstFrameSettled = false;
+  let firstFrameTimeout = setTimeout(() => {
+    if (!firstFrameSettled) {
+      firstFrameSettled = true;
+      rejectFirstFrame(new Error('Stream timed out — no audio frames received'));
+    }
+  }, 15000);
   const firstFrameScheduled = new Promise((resolve, reject) => {
     resolveFirstFrame = resolve;
     rejectFirstFrame = reject;
   });
 
   function handleFatalError(err) {
+    clearTimeout(firstFrameTimeout);
     if (!firstFrameSettled) {
       firstFrameSettled = true;
       rejectFirstFrame(err);
@@ -131,6 +141,8 @@ export async function play(station, delaySeconds, onFatalError) {
       nextStartTime += buffer.duration;
       if (!firstFrameSettled) {
         firstFrameSettled = true;
+        isStreaming = true;
+        clearTimeout(firstFrameTimeout);
         resolveFirstFrame();
       }
     },
@@ -147,7 +159,8 @@ export async function play(station, delaySeconds, onFatalError) {
             decoder.configure({ codec: 'mp3', sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels });
             configured = true;
           }
-          decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: 0, data: frame.bytes }));
+          decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: frameTimestampUs, data: frame.bytes }));
+          frameTimestampUs += Math.round(1152 * 1_000_000 / frame.sampleRate);
         }
       }
     } catch (err) {
@@ -167,11 +180,12 @@ export function pause() {
     currentAbortController.abort();
     currentAbortController = null;
   }
+  isStreaming = false;
   stopAllSources();
 }
 
 export function setDelaySeconds(value, { onBegin, onComplete, onError } = {}) {
-  if (!currentStation || !currentAbortController) return;
+  if (!currentStation || !isStreaming) return;
   if (delayChangeTimer) clearTimeout(delayChangeTimer);
   delayChangeTimer = setTimeout(async () => {
     delayChangeTimer = null;

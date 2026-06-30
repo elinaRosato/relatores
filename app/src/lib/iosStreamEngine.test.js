@@ -128,6 +128,7 @@ afterEach(() => {
   delete globalThis.AudioDecoder;
   delete globalThis.EncodedAudioChunk;
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 const testStation = { id: 'rnacional', name: 'Radio Nacional', stream: 'https://re-lata.com/stream/rnacional' };
@@ -206,6 +207,22 @@ describe('play', () => {
     const { play } = await import('./iosStreamEngine.js');
 
     await expect(play(testStation, 0)).rejects.toThrow('502');
+  });
+
+  it('rejects after 15 seconds if no audio frame is ever decoded', async () => {
+    const hangingResponse = {
+      ok: true,
+      status: 200,
+      body: new ReadableStream({ start() {} }), // never sends data
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(hangingResponse);
+    const { play } = await import('./iosStreamEngine.js');
+
+    vi.useFakeTimers();
+    const playPromise = play(testStation, 0);
+    const assertion = expect(playPromise).rejects.toThrow('timed out');
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
   });
 });
 
@@ -352,6 +369,38 @@ describe('setDelaySeconds', () => {
   it('does nothing if called before any play()', async () => {
     const { setDelaySeconds } = await import('./iosStreamEngine.js');
     expect(() => setDelaySeconds(10)).not.toThrow();
+  });
+
+  it('does not schedule a restart while the initial stream is still buffering (before first frame)', async () => {
+    // Simulates the stale-timer bug: $effect fires setDelaySeconds while
+    // play() is in-flight but before the first frame has been decoded.
+    // With isStreaming=false during startup, the timer must be a no-op.
+    let resolveRead;
+    const hangingResponse = {
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          // Enqueue nothing — simulates a slow stream that hasn't sent frames yet.
+          resolveRead = () => controller.close();
+        },
+      }),
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(hangingResponse);
+    const { play, setDelaySeconds } = await import('./iosStreamEngine.js');
+
+    vi.useFakeTimers();
+    const playPromise = play(testStation, 0); // starts but first frame never arrives
+    const assertion = expect(playPromise).rejects.toThrow('timed out');
+
+    setDelaySeconds(5); // called while still buffering — must be ignored
+    await vi.advanceTimersByTimeAsync(300); // debounce would fire here if not guarded
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1); // no restart triggered
+    resolveRead();
+    // Advance past the 15s timeout so the play() promise settles and doesn't leak.
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
   });
 
   it('restarts playback with the new delay after settling for 300ms', async () => {
