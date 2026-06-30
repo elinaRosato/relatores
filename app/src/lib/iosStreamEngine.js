@@ -33,9 +33,13 @@ function ensureContext() {
 }
 
 // Must be called synchronously within the user gesture that triggers playback.
-// iOS Safari requires an actual audio operation (not just resume()) to activate
-// the context — playing a 1-sample silent buffer is the reliable unlock.
+// Must be called synchronously within the user gesture that triggers playback.
+// Sets 'playback' audio session before creating the context so iOS routes audio
+// through the speaker even when the hardware mute switch is on. Then plays a
+// 1-sample silent buffer — iOS Safari requires an actual audio operation, not
+// just resume(), to fully activate the context.
 export function warmContext() {
+  if (navigator.audioSession) navigator.audioSession.type = 'play';
   ensureContext();
   if (audioCtx.state === 'running') return;
   const silence = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
@@ -71,8 +75,6 @@ export async function play(station, delaySeconds, onFatalError) {
   currentOnFatalError = onFatalError;
   ensureContext();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-  if (navigator.audioSession) navigator.audioSession.type = 'play';
 
   if (currentAbortController) currentAbortController.abort();
   const abortController = new AbortController();
