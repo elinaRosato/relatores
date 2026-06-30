@@ -46,11 +46,16 @@ async function handleStream(station, request) {
 
   const headers = withCors(new Headers(), request);
   headers.set('Content-Type', 'application/octet-stream');
-  for (const name of ['Accept-Ranges', 'Content-Range', 'Content-Length']) {
+  for (const name of ['Accept-Ranges', 'Content-Range']) {
     const value = upstreamResponse.headers.get(name);
     if (value) headers.set(name, value);
   }
-  headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
+  // Content-Length is intentionally NOT forwarded. Some CDNs (e.g. StreamTheWorld)
+  // include it even on live streams, reflecting only the current buffer segment.
+  // iOS Safari's fetch() honours Content-Length strictly and returns done:true once
+  // that many bytes are read, cutting the stream off after ~1 second. The <audio>
+  // element ignores it for streaming; fetch() in script context does not.
+  headers.set('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges');
 
   return new Response(upstreamResponse.body, { status: upstreamResponse.status, headers });
 }
