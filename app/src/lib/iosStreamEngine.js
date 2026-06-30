@@ -39,7 +39,7 @@ function ensureContext() {
 // 1-sample silent buffer — iOS Safari requires an actual audio operation, not
 // just resume(), to fully activate the context.
 export function warmContext() {
-  if (navigator.audioSession) navigator.audioSession.type = 'play';
+  if (navigator.audioSession) navigator.audioSession.type = 'playback';
   ensureContext();
   if (audioCtx.state === 'running') return;
   const silence = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
