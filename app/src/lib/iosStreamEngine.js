@@ -82,13 +82,14 @@ function audioDataToBuffer(audioData) {
 export async function play(station, delaySeconds, onFatalError) {
   currentStation = station;
   currentOnFatalError = onFatalError;
-  ensureContext();
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
-
+  // Reset before any await so Svelte effects that fire during audioCtx.resume()
+  // see isStreaming=false and don't schedule a stale delay-change restart.
   if (currentAbortController) currentAbortController.abort();
   if (delayChangeTimer) { clearTimeout(delayChangeTimer); delayChangeTimer = null; }
   stopAllSources();
   isStreaming = false;
+  ensureContext();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
   const abortController = new AbortController();
   currentAbortController = abortController;
 
@@ -153,7 +154,14 @@ export async function play(station, delaySeconds, onFatalError) {
     try {
       while (!abortController.signal.aborted) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          // Live radio streams never end — a clean close means the connection
+          // was dropped (iOS can truncate audio/mpeg response bodies early).
+          if (!abortController.signal.aborted && firstFrameSettled) {
+            handleFatalError(new Error('Stream connection closed unexpectedly'));
+          }
+          break;
+        }
         for (const frame of parser.push(value)) {
           if (!configured) {
             decoder.configure({ codec: 'mp3', sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels });

@@ -112,6 +112,22 @@ function fakeStreamResponse(bytes, { ok = true, status = 200 } = {}) {
   };
 }
 
+// Like fakeStreamResponse but keeps the stream open so abort — not stream-end
+// — is what terminates the read loop. Use this in tests where the assertion is
+// that a clean done:true is NOT produced.
+function openStreamResponse(bytes) {
+  return {
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes);
+        // deliberately never call close() — stream stays open
+      },
+    }),
+  };
+}
+
 let fakeAudioContext;
 
 beforeEach(() => {
@@ -349,15 +365,16 @@ describe('fatal errors after the first frame', () => {
     expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'connection dropped' }));
   });
 
-  it('does not call onFatalError for a clean stream end', async () => {
+  it('calls onFatalError when the stream closes after the first frame (unexpected end of live stream)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
     const onFatalError = vi.fn();
 
     await play(testStation, 0, onFatalError);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0)); // let the background loop process the done signal
 
-    expect(onFatalError).not.toHaveBeenCalled();
+    expect(onFatalError).toHaveBeenCalledTimes(1);
+    expect(onFatalError.mock.calls[0][0].message).toMatch(/closed unexpectedly/i);
   });
 });
 
@@ -441,7 +458,10 @@ describe('setDelaySeconds', () => {
   });
 
   it('does not fire onFatalError for the abort caused by its own restart', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    // Use an open (never-closing) stream so the IIFE's read loop only ends
+    // via abort, not via a clean done:true — which is the correct live-stream
+    // behaviour the abort guard is designed to protect against.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, setDelaySeconds } = await import('./iosStreamEngine.js');
     const onFatalError = vi.fn();
 
