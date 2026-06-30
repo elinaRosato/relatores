@@ -104,6 +104,7 @@ export async function play(station, delaySeconds, onFatalError) {
   let detectedFormat = null; // 'mp3' | 'aac' | null while probing
   let samplesPerFrame = 1152; // updated on first frame: 1152 for MP3, 1024 for AAC
   let reader = response.body.getReader();
+  let totalBytesReceived = 0; // used for Range: bytes=N- on reconnect
 
   let decoder;
   let configured = false;
@@ -161,12 +162,29 @@ export async function play(station, delaySeconds, onFatalError) {
         if (done) {
           if (abortController.signal.aborted) break;
           if (!firstFrameSettled) break; // 15 s timeout handles the pre-first-frame case
-          // Some CDNs (e.g. StreamTheWorld) send a fixed-size segment (~32 KB) then
-          // close the connection, expecting the client to reconnect immediately.
-          // The <audio> element does this transparently; we must too.
-          // Already-scheduled AudioBufferSourceNodes cover the reconnect window.
+          // StreamTheWorld CDN closes after ~32 KB, expecting the client to reconnect.
+          //
+          // Two-part fix to avoid the "scratched disk" repetition effect:
+          //
+          // 1. TIMING: the CDN serves a rolling ~2 s live buffer. Reconnecting immediately
+          //    after download (which completes in ~180 ms) fetches audio that overlaps ~1.8 s
+          //    with what we already scheduled. We wait until ~500 ms of buffered audio
+          //    remains — by then the CDN window has advanced enough to minimise overlap.
+          //    (In tests, fake frames are tiny so bufferRemaining < 0.5 s and waitMs = 0.)
+          //
+          // 2. RANGE: we ask for bytes=N- so the CDN picks up exactly where it left off,
+          //    eliminating any remaining overlap for CDNs that honour byte-range requests
+          //    on live streams (StreamTheWorld advertises Accept-Ranges: bytes).
+          const RECONNECT_AHEAD_S = 0.5;
+          const bufferRemaining = (nextStartTime ?? audioCtx.currentTime) - audioCtx.currentTime;
+          const waitMs = Math.max(0, (bufferRemaining - RECONNECT_AHEAD_S) * 1000);
+          if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
+          if (abortController.signal.aborted) break;
           try {
-            const newResponse = await fetch(station.stream, { signal: abortController.signal });
+            const newResponse = await fetch(station.stream, {
+              signal: abortController.signal,
+              headers: { Range: `bytes=${totalBytesReceived}-` },
+            });
             if (!newResponse.ok) {
               handleFatalError(new Error(`Reconnect failed: ${newResponse.status}`));
               break;
@@ -180,6 +198,7 @@ export async function play(station, delaySeconds, onFatalError) {
             break;
           }
         }
+        totalBytesReceived += value.byteLength;
         let frames;
         if (detectedFormat === 'mp3') {
           frames = mp3Parser.push(value);
