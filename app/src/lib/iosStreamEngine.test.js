@@ -157,6 +157,19 @@ describe('play', () => {
     }
   });
 
+  it('assigns the decoded AudioBuffer to each source node before starting it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    const { play } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fakeAudioContext.sourcesCreated).toHaveLength(2);
+    for (let i = 0; i < fakeAudioContext.sourcesCreated.length; i++) {
+      expect(fakeAudioContext.sourcesCreated[i].buffer).toBe(fakeAudioContext.buffersCreated[i]);
+    }
+  });
+
   it('resolves once the first frame is scheduled, without waiting for the whole stream', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');

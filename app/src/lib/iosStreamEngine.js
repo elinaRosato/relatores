@@ -104,6 +104,7 @@ export async function play(station, delaySeconds, onFatalError) {
     output: (audioData) => {
       const buffer = audioDataToBuffer(audioData);
       const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
       source.connect(gainNode);
       if (nextStartTime === null) nextStartTime = audioCtx.currentTime + delaySeconds;
       source.start(nextStartTime);
