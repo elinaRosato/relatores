@@ -85,6 +85,7 @@ export async function play(station, delaySeconds, onFatalError) {
   if (audioCtx.state === 'suspended') await audioCtx.resume();
 
   if (currentAbortController) currentAbortController.abort();
+  if (delayChangeTimer) { clearTimeout(delayChangeTimer); delayChangeTimer = null; }
   stopAllSources();
   const abortController = new AbortController();
   currentAbortController = abortController;

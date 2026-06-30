@@ -67,6 +67,7 @@
     function onFatalError(err) {
       if (requestId !== playRequestId) return;
       console.warn('Fatal stream error:', err);
+      audioEngine.pause();
       isPlaying.set(false);
       playbackError = `${station.name} no está disponible en este momento. Probá de nuevo más tarde o elegí otra radio.`;
     }
