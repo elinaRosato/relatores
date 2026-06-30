@@ -6,6 +6,7 @@ let currentAbortController = null;
 let currentStation = null;
 let currentOnFatalError = null;
 let delayChangeTimer = null;
+let activeSources = [];
 
 const WAVEFORM_SAMPLE_COUNT = 128;
 let waveformBytes = new Uint8Array(WAVEFORM_SAMPLE_COUNT).fill(128);
@@ -23,6 +24,13 @@ function computeWaveformBytes(channelData) {
     bytes[i] = Math.round((clamped + 1) * 127.5); // centered at 128, like AnalyserNode's time-domain bytes
   }
   return bytes;
+}
+
+function stopAllSources() {
+  for (const source of activeSources) {
+    try { source.stop(); } catch (_) {}
+  }
+  activeSources = [];
 }
 
 function ensureContext() {
@@ -77,6 +85,7 @@ export async function play(station, delaySeconds, onFatalError) {
   if (audioCtx.state === 'suspended') await audioCtx.resume();
 
   if (currentAbortController) currentAbortController.abort();
+  stopAllSources();
   const abortController = new AbortController();
   currentAbortController = abortController;
 
@@ -115,6 +124,8 @@ export async function play(station, delaySeconds, onFatalError) {
       source.buffer = buffer;
       source.connect(gainNode);
       if (nextStartTime === null) nextStartTime = audioCtx.currentTime + delaySeconds;
+      activeSources.push(source);
+      source.onended = () => { activeSources = activeSources.filter((s) => s !== source); };
       source.start(nextStartTime);
       nextStartTime += buffer.duration;
       if (!firstFrameSettled) {
@@ -155,6 +166,7 @@ export function pause() {
     currentAbortController.abort();
     currentAbortController = null;
   }
+  stopAllSources();
 }
 
 export function setDelaySeconds(value) {

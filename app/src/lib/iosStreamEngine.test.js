@@ -29,6 +29,7 @@ class FakeBufferSource {
   constructor() {
     this.connect = vi.fn();
     this.start = vi.fn();
+    this.stop = vi.fn();
   }
 }
 
@@ -218,6 +219,33 @@ describe('pause', () => {
 
     const [, init] = globalThis.fetch.mock.calls[0];
     expect(init.signal.aborted).toBe(true);
+  });
+
+  it('stops all scheduled AudioBufferSourceNodes immediately', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    const { play, pause } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    pause();
+
+    for (const source of fakeAudioContext.sourcesCreated) {
+      expect(source.stop).toHaveBeenCalled();
+    }
+  });
+
+  it('stops old sources when play() is called again (delay change restart)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    const { play } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    const firstSources = [...fakeAudioContext.sourcesCreated];
+
+    await play(testStation, 5);
+
+    for (const source of firstSources) {
+      expect(source.stop).toHaveBeenCalled();
+    }
   });
 });
 
