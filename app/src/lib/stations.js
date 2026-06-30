@@ -1,7 +1,13 @@
 // Stream URLs verified against radio-browser.info (https://www.radio-browser.info/)
 // on 2026-06-24. Used only if the proxy is unreachable — bypasses the proxy
-// entirely (direct upstream URLs), so it still hits the iOS CORS-taint bug
-// the proxy exists to fix. Accepted trade-off: some stations beats none.
+// entirely (direct upstream URLs), so it hits two iOS bugs the proxy fixes:
+//   1. CORS taint: cross-origin responses without CORS headers are opaque
+//      (body unreadable in WebCodecs / Web Audio).
+//   2. Content-Type truncation: iOS Safari silently cuts off fetch() response
+//      bodies when Content-Type is audio/mpeg — the proxy overrides this to
+//      application/octet-stream, the direct servers don't.
+// Accepted trade-off: on iOS the fallback streams will likely fail, but on
+// desktop/Android they'll still work.
 const FALLBACK_STATIONS = [
   { id: 'rnacional', name: 'Radio Nacional', freq: 'AM 870 / FM 98.7 — Buenos Aires', stream: 'https://sa.mp3.icecast.magma.edge-access.net/sc_rad1' },
   { id: 'rivadavia', name: 'Radio Rivadavia', freq: 'AM 630 — Buenos Aires', stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/RIVADAVIA.mp3' },
