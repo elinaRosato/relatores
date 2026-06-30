@@ -29,6 +29,7 @@ class FakeBufferSource {
   constructor() {
     this.connect = vi.fn();
     this.start = vi.fn();
+    this.stop = vi.fn();
   }
 }
 
@@ -111,6 +112,22 @@ function fakeStreamResponse(bytes, { ok = true, status = 200 } = {}) {
   };
 }
 
+// Like fakeStreamResponse but keeps the stream open so abort — not stream-end
+// — is what terminates the read loop. Use this in tests where the assertion is
+// that a clean done:true is NOT produced.
+function openStreamResponse(bytes) {
+  return {
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes);
+        // deliberately never call close() — stream stays open
+      },
+    }),
+  };
+}
+
 let fakeAudioContext;
 
 beforeEach(() => {
@@ -127,9 +144,28 @@ afterEach(() => {
   delete globalThis.AudioDecoder;
   delete globalThis.EncodedAudioChunk;
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 const testStation = { id: 'rnacional', name: 'Radio Nacional', stream: 'https://re-lata.com/stream/rnacional' };
+
+// Builds a minimal valid ADTS frame: 7-byte header (no CRC) + `payloadSize` zero bytes.
+function buildAdtsFrame({ sampleRate = 44100, channels = 2, payloadSize = 8 } = {}) {
+  const FREQS = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+  const sfIndex = FREQS.indexOf(sampleRate);
+  const profile = 1; // AAC-LC
+  const headerLength = 7;
+  const frameLength = headerLength + payloadSize;
+  const f = new Uint8Array(frameLength);
+  f[0] = 0xff;
+  f[1] = 0xf1;
+  f[2] = ((profile & 0x03) << 6) | ((sfIndex & 0x0f) << 2) | ((channels >> 2) & 0x01);
+  f[3] = ((channels & 0x03) << 6) | ((frameLength >> 11) & 0x03);
+  f[4] = (frameLength >> 3) & 0xff;
+  f[5] = ((frameLength & 0x07) << 5) | 0x1f;
+  f[6] = 0xfc;
+  return f;
+}
 
 describe('play', () => {
   it('fetches the station stream URL', async () => {
@@ -154,6 +190,19 @@ describe('play', () => {
     for (const buffer of fakeAudioContext.buffersCreated) {
       expect(buffer.sampleRate).toBe(44100);
       expect(buffer.numberOfChannels).toBe(2);
+    }
+  });
+
+  it('assigns the decoded AudioBuffer to each source node before starting it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    const { play } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fakeAudioContext.sourcesCreated).toHaveLength(2);
+    for (let i = 0; i < fakeAudioContext.sourcesCreated.length; i++) {
+      expect(fakeAudioContext.sourcesCreated[i].buffer).toBe(fakeAudioContext.buffersCreated[i]);
     }
   });
 
@@ -193,6 +242,38 @@ describe('play', () => {
 
     await expect(play(testStation, 0)).rejects.toThrow('502');
   });
+
+  it('rejects after 15 seconds if no audio frame is ever decoded', async () => {
+    const hangingResponse = {
+      ok: true,
+      status: 200,
+      body: new ReadableStream({ start() {} }), // never sends data
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(hangingResponse);
+    const { play } = await import('./iosStreamEngine.js');
+
+    vi.useFakeTimers();
+    const playPromise = play(testStation, 0);
+    const assertion = expect(playPromise).rejects.toThrow('timed out');
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
+  });
+});
+
+describe('play (AAC stream)', () => {
+  it('auto-detects ADTS AAC and schedules audio buffers with the correct sample rate and channels', async () => {
+    const frame = buildAdtsFrame({ sampleRate: 44100, channels: 1, payloadSize: 8 });
+    const twoFrames = new Uint8Array([...frame, ...frame]);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(twoFrames)));
+    const { play } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fakeAudioContext.buffersCreated.length).toBeGreaterThanOrEqual(1);
+    expect(fakeAudioContext.buffersCreated[0].sampleRate).toBe(44100);
+    expect(fakeAudioContext.buffersCreated[0].numberOfChannels).toBe(1);
+  });
 });
 
 describe('pause', () => {
@@ -205,6 +286,33 @@ describe('pause', () => {
 
     const [, init] = globalThis.fetch.mock.calls[0];
     expect(init.signal.aborted).toBe(true);
+  });
+
+  it('stops all scheduled AudioBufferSourceNodes immediately', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    const { play, pause } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    pause();
+
+    for (const source of fakeAudioContext.sourcesCreated) {
+      expect(source.stop).toHaveBeenCalled();
+    }
+  });
+
+  it('stops old sources when play() is called again (delay change restart)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    const { play } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    const firstSources = [...fakeAudioContext.sourcesCreated];
+
+    await play(testStation, 5);
+
+    for (const source of firstSources) {
+      expect(source.stop).toHaveBeenCalled();
+    }
   });
 });
 
@@ -226,7 +334,7 @@ describe('getWaveformData', () => {
   it('returns a flat, centered array before any playback', async () => {
     const { getWaveformData } = await import('./iosStreamEngine.js');
     const data = getWaveformData();
-    expect(data).toHaveLength(64);
+    expect(data).toHaveLength(128);
     expect(Array.from(data).every((v) => v === 128)).toBe(true);
   });
 
@@ -237,7 +345,7 @@ describe('getWaveformData', () => {
     await play(testStation, 0);
     const data = getWaveformData();
 
-    expect(data).toHaveLength(64);
+    expect(data).toHaveLength(128);
     // FakeAudioData.copyTo() fills with silence (0), which maps to the
     // centered byte value 128 -- same as true silence would on a real
     // AnalyserNode. This proves the computation path runs and produces
@@ -291,15 +399,16 @@ describe('fatal errors after the first frame', () => {
     expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'connection dropped' }));
   });
 
-  it('does not call onFatalError for a clean stream end', async () => {
+  it('calls onFatalError when the stream closes after the first frame (unexpected end of live stream)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play } = await import('./iosStreamEngine.js');
     const onFatalError = vi.fn();
 
     await play(testStation, 0, onFatalError);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0)); // let the background loop process the done signal
 
-    expect(onFatalError).not.toHaveBeenCalled();
+    expect(onFatalError).toHaveBeenCalledTimes(1);
+    expect(onFatalError.mock.calls[0][0].message).toMatch(/closed unexpectedly/i);
   });
 });
 
@@ -311,6 +420,38 @@ describe('setDelaySeconds', () => {
   it('does nothing if called before any play()', async () => {
     const { setDelaySeconds } = await import('./iosStreamEngine.js');
     expect(() => setDelaySeconds(10)).not.toThrow();
+  });
+
+  it('does not schedule a restart while the initial stream is still buffering (before first frame)', async () => {
+    // Simulates the stale-timer bug: $effect fires setDelaySeconds while
+    // play() is in-flight but before the first frame has been decoded.
+    // With isStreaming=false during startup, the timer must be a no-op.
+    let resolveRead;
+    const hangingResponse = {
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          // Enqueue nothing — simulates a slow stream that hasn't sent frames yet.
+          resolveRead = () => controller.close();
+        },
+      }),
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(hangingResponse);
+    const { play, setDelaySeconds } = await import('./iosStreamEngine.js');
+
+    vi.useFakeTimers();
+    const playPromise = play(testStation, 0); // starts but first frame never arrives
+    const assertion = expect(playPromise).rejects.toThrow('timed out');
+
+    setDelaySeconds(5); // called while still buffering — must be ignored
+    await vi.advanceTimersByTimeAsync(300); // debounce would fire here if not guarded
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1); // no restart triggered
+    resolveRead();
+    // Advance past the 15s timeout so the play() promise settles and doesn't leak.
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
   });
 
   it('restarts playback with the new delay after settling for 300ms', async () => {
@@ -351,7 +492,10 @@ describe('setDelaySeconds', () => {
   });
 
   it('does not fire onFatalError for the abort caused by its own restart', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
+    // Use an open (never-closing) stream so the IIFE's read loop only ends
+    // via abort, not via a clean done:true — which is the correct live-stream
+    // behaviour the abort guard is designed to protect against.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(openStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
     const { play, setDelaySeconds } = await import('./iosStreamEngine.js');
     const onFatalError = vi.fn();
 

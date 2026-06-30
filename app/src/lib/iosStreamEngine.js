@@ -1,4 +1,5 @@
 import { createMp3FrameParser } from './demux/mp3.js';
+import { createAacFrameParser } from './demux/aac.js';
 
 let audioCtx = null;
 let gainNode = null;
@@ -6,8 +7,10 @@ let currentAbortController = null;
 let currentStation = null;
 let currentOnFatalError = null;
 let delayChangeTimer = null;
+let activeSources = [];
+let isStreaming = false; // true only after the first frame of a session is scheduled
 
-const WAVEFORM_SAMPLE_COUNT = 64;
+const WAVEFORM_SAMPLE_COUNT = 128;
 let waveformBytes = new Uint8Array(WAVEFORM_SAMPLE_COUNT).fill(128);
 
 export function getWaveformData() {
@@ -25,11 +28,36 @@ function computeWaveformBytes(channelData) {
   return bytes;
 }
 
+function stopAllSources() {
+  for (const source of activeSources) {
+    try { source.stop(); } catch (_) {}
+  }
+  activeSources = [];
+}
+
 function ensureContext() {
   if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   gainNode = audioCtx.createGain();
   gainNode.connect(audioCtx.destination);
+}
+
+// Must be called synchronously within the user gesture that triggers playback.
+// Must be called synchronously within the user gesture that triggers playback.
+// Sets 'playback' audio session before creating the context so iOS routes audio
+// through the speaker even when the hardware mute switch is on. Then plays a
+// 1-sample silent buffer — iOS Safari requires an actual audio operation, not
+// just resume(), to fully activate the context.
+export function warmContext() {
+  if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  ensureContext();
+  if (audioCtx.state === 'running') return;
+  const silence = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+  const unlock = audioCtx.createBufferSource();
+  unlock.buffer = silence;
+  unlock.connect(audioCtx.destination);
+  unlock.start(0);
+  audioCtx.resume().catch(() => {});
 }
 
 export function isContextCreated() {
@@ -55,10 +83,14 @@ function audioDataToBuffer(audioData) {
 export async function play(station, delaySeconds, onFatalError) {
   currentStation = station;
   currentOnFatalError = onFatalError;
+  // Reset before any await so Svelte effects that fire during audioCtx.resume()
+  // see isStreaming=false and don't schedule a stale delay-change restart.
+  if (currentAbortController) currentAbortController.abort();
+  if (delayChangeTimer) { clearTimeout(delayChangeTimer); delayChangeTimer = null; }
+  stopAllSources();
+  isStreaming = false;
   ensureContext();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-  if (currentAbortController) currentAbortController.abort();
   const abortController = new AbortController();
   currentAbortController = abortController;
 
@@ -67,21 +99,32 @@ export async function play(station, delaySeconds, onFatalError) {
     throw new Error(`Stream responded with ${response.status}`);
   }
 
-  const parser = createMp3FrameParser();
+  const mp3Parser = createMp3FrameParser();
+  const aacParser = createAacFrameParser();
+  let detectedFormat = null; // 'mp3' | 'aac' | null while probing
+  let samplesPerFrame = 1152; // updated on first frame: 1152 for MP3, 1024 for AAC
   const reader = response.body.getReader();
 
   let decoder;
   let configured = false;
   let nextStartTime = null;
+  let frameTimestampUs = 0;
   let resolveFirstFrame;
   let rejectFirstFrame;
   let firstFrameSettled = false;
+  let firstFrameTimeout = setTimeout(() => {
+    if (!firstFrameSettled) {
+      firstFrameSettled = true;
+      rejectFirstFrame(new Error('Stream timed out — no audio frames received'));
+    }
+  }, 15000);
   const firstFrameScheduled = new Promise((resolve, reject) => {
     resolveFirstFrame = resolve;
     rejectFirstFrame = reject;
   });
 
   function handleFatalError(err) {
+    clearTimeout(firstFrameTimeout);
     if (!firstFrameSettled) {
       firstFrameSettled = true;
       rejectFirstFrame(err);
@@ -94,12 +137,17 @@ export async function play(station, delaySeconds, onFatalError) {
     output: (audioData) => {
       const buffer = audioDataToBuffer(audioData);
       const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
       source.connect(gainNode);
       if (nextStartTime === null) nextStartTime = audioCtx.currentTime + delaySeconds;
+      activeSources.push(source);
+      source.onended = () => { activeSources = activeSources.filter((s) => s !== source); };
       source.start(nextStartTime);
       nextStartTime += buffer.duration;
       if (!firstFrameSettled) {
         firstFrameSettled = true;
+        isStreaming = true;
+        clearTimeout(firstFrameTimeout);
         resolveFirstFrame();
       }
     },
@@ -110,13 +158,48 @@ export async function play(station, delaySeconds, onFatalError) {
     try {
       while (!abortController.signal.aborted) {
         const { done, value } = await reader.read();
-        if (done) break;
-        for (const frame of parser.push(value)) {
+        if (done) {
+          // Live radio streams never end — a clean close means the connection
+          // was dropped (iOS can truncate audio/mpeg response bodies early).
+          if (!abortController.signal.aborted && firstFrameSettled) {
+            handleFatalError(new Error('Stream connection closed unexpectedly'));
+          }
+          break;
+        }
+        let frames;
+        if (detectedFormat === 'mp3') {
+          frames = mp3Parser.push(value);
+        } else if (detectedFormat === 'aac') {
+          frames = aacParser.push(value);
+        } else {
+          // Still probing: try MP3 first, fall back to AAC.
+          // Both parsers accumulate bytes independently until one finds a frame.
+          const mp3Frames = mp3Parser.push(value);
+          if (mp3Frames.length > 0) {
+            detectedFormat = 'mp3';
+            samplesPerFrame = 1152;
+            frames = mp3Frames;
+          } else {
+            const aacFrames = aacParser.push(value);
+            if (aacFrames.length > 0) {
+              detectedFormat = 'aac';
+              samplesPerFrame = 1024;
+              frames = aacFrames;
+            } else {
+              frames = [];
+            }
+          }
+        }
+        for (const frame of frames) {
           if (!configured) {
-            decoder.configure({ codec: 'mp3', sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels });
+            const config = detectedFormat === 'mp3'
+              ? { codec: 'mp3', sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels }
+              : { codec: `mp4a.40.${frame.audioObjectType}`, sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels, description: frame.description };
+            decoder.configure(config);
             configured = true;
           }
-          decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: 0, data: frame.bytes }));
+          decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: frameTimestampUs, data: frame.bytes }));
+          frameTimestampUs += Math.round(samplesPerFrame * 1_000_000 / frame.sampleRate);
         }
       }
     } catch (err) {
@@ -136,15 +219,22 @@ export function pause() {
     currentAbortController.abort();
     currentAbortController = null;
   }
+  isStreaming = false;
+  stopAllSources();
 }
 
-export function setDelaySeconds(value) {
-  if (!currentStation || !currentAbortController) return;
+export function setDelaySeconds(value, { onBegin, onComplete, onError } = {}) {
+  if (!currentStation || !isStreaming) return;
   if (delayChangeTimer) clearTimeout(delayChangeTimer);
-  delayChangeTimer = setTimeout(() => {
+  delayChangeTimer = setTimeout(async () => {
     delayChangeTimer = null;
-    play(currentStation, value, currentOnFatalError).catch((err) => {
-      if (currentOnFatalError) currentOnFatalError(err);
-    });
+    if (onBegin) onBegin();
+    try {
+      await play(currentStation, value, onError || currentOnFatalError);
+      if (onComplete) onComplete();
+    } catch (err) {
+      const handler = onError || currentOnFatalError;
+      if (handler) handler(err);
+    }
   }, 300);
 }

@@ -14,6 +14,7 @@ vi.mock('./lib/audioEngine.js', () => ({
   getAudioElement: vi.fn(),
   isContextCreated: vi.fn(),
   isIOSEngine: vi.fn().mockReturnValue(false),
+  warmContext: vi.fn(),
 }));
 import * as audioEngine from './lib/audioEngine.js';
 
@@ -61,6 +62,7 @@ beforeEach(() => {
   audioEngine.setGain.mockClear();
   audioEngine.isIOSEngine.mockClear();
   audioEngine.isIOSEngine.mockReturnValue(false);
+  audioEngine.warmContext.mockClear();
   fetchStations.mockReset();
   fetchStations.mockResolvedValue({ stations: TEST_STATIONS, proxied: true });
   getFallbackStreamUrl.mockReset();

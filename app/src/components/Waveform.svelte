@@ -8,6 +8,15 @@
   let ctx = null;
   let frameId = null;
 
+  // iOS waveform lerp state — smooths the ~38fps frame-decode updates to 60fps.
+  // waveformBytes is a new array reference each decoded frame; comparing
+  // references detects updates without per-sample equality checks.
+  let lerpPrevData = null;   // the waveformBytes reference seen on the last update
+  let lerpStart = 0;         // performance.now() when the current lerp began
+  let displayArr = null;     // pre-allocated interpolated output
+  let prevSnap = null;       // snapshot of displayArr at the start of each lerp
+  const WAVEFORM_FRAME_MS = 1152 / 44100 * 1000; // ~26ms per decoded frame
+
   // Setting canvas.width/height wipes the bitmap. Mobile browsers fire
   // `resize` on scroll as the address bar collapses/expands, so without a
   // repaint here the idle flat-line goes blank until the next play()
@@ -58,7 +67,25 @@
       dataArr = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteTimeDomainData(dataArr);
     } else {
-      dataArr = getWaveformData();
+      const raw = getWaveformData();
+      const now = performance.now();
+
+      if (!displayArr) {
+        displayArr = new Uint8Array(raw.length).fill(128);
+        prevSnap = new Uint8Array(raw.length).fill(128);
+      }
+
+      if (raw !== lerpPrevData) {
+        prevSnap.set(displayArr);
+        lerpStart = now;
+        lerpPrevData = raw;
+      }
+
+      const t = Math.min(1, (now - lerpStart) / WAVEFORM_FRAME_MS);
+      for (let i = 0; i < raw.length; i++) {
+        displayArr[i] = Math.round(prevSnap[i] + t * (raw[i] - prevSnap[i]));
+      }
+      dataArr = displayArr;
     }
 
     strokeGradientPath((w, h) => {
