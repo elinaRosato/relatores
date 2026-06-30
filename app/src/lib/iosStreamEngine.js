@@ -33,11 +33,17 @@ function ensureContext() {
 }
 
 // Must be called synchronously within the user gesture that triggers playback.
-// iOS Safari only grants AudioContext activation if resume() is initiated
-// before any async hop, regardless of whether the context was just created.
+// iOS Safari requires an actual audio operation (not just resume()) to activate
+// the context — playing a 1-sample silent buffer is the reliable unlock.
 export function warmContext() {
   ensureContext();
-  if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
+  if (audioCtx.state === 'running') return;
+  const silence = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+  const unlock = audioCtx.createBufferSource();
+  unlock.buffer = silence;
+  unlock.connect(audioCtx.destination);
+  unlock.start(0);
+  audioCtx.resume().catch(() => {});
 }
 
 export function isContextCreated() {
