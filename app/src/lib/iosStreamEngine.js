@@ -1,4 +1,5 @@
 import { createMp3FrameParser } from './demux/mp3.js';
+import { createAacFrameParser } from './demux/aac.js';
 
 let audioCtx = null;
 let gainNode = null;
@@ -98,7 +99,10 @@ export async function play(station, delaySeconds, onFatalError) {
     throw new Error(`Stream responded with ${response.status}`);
   }
 
-  const parser = createMp3FrameParser();
+  const mp3Parser = createMp3FrameParser();
+  const aacParser = createAacFrameParser();
+  let detectedFormat = null; // 'mp3' | 'aac' | null while probing
+  let samplesPerFrame = 1152; // updated on first frame: 1152 for MP3, 1024 for AAC
   const reader = response.body.getReader();
 
   let decoder;
@@ -162,13 +166,40 @@ export async function play(station, delaySeconds, onFatalError) {
           }
           break;
         }
-        for (const frame of parser.push(value)) {
+        let frames;
+        if (detectedFormat === 'mp3') {
+          frames = mp3Parser.push(value);
+        } else if (detectedFormat === 'aac') {
+          frames = aacParser.push(value);
+        } else {
+          // Still probing: try MP3 first, fall back to AAC.
+          // Both parsers accumulate bytes independently until one finds a frame.
+          const mp3Frames = mp3Parser.push(value);
+          if (mp3Frames.length > 0) {
+            detectedFormat = 'mp3';
+            samplesPerFrame = 1152;
+            frames = mp3Frames;
+          } else {
+            const aacFrames = aacParser.push(value);
+            if (aacFrames.length > 0) {
+              detectedFormat = 'aac';
+              samplesPerFrame = 1024;
+              frames = aacFrames;
+            } else {
+              frames = [];
+            }
+          }
+        }
+        for (const frame of frames) {
           if (!configured) {
-            decoder.configure({ codec: 'mp3', sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels });
+            const config = detectedFormat === 'mp3'
+              ? { codec: 'mp3', sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels }
+              : { codec: `mp4a.40.${frame.audioObjectType}`, sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels, description: frame.description };
+            decoder.configure(config);
             configured = true;
           }
           decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: frameTimestampUs, data: frame.bytes }));
-          frameTimestampUs += Math.round(1152 * 1_000_000 / frame.sampleRate);
+          frameTimestampUs += Math.round(samplesPerFrame * 1_000_000 / frame.sampleRate);
         }
       }
     } catch (err) {

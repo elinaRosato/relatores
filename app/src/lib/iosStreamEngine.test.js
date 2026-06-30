@@ -149,6 +149,24 @@ afterEach(() => {
 
 const testStation = { id: 'rnacional', name: 'Radio Nacional', stream: 'https://re-lata.com/stream/rnacional' };
 
+// Builds a minimal valid ADTS frame: 7-byte header (no CRC) + `payloadSize` zero bytes.
+function buildAdtsFrame({ sampleRate = 44100, channels = 2, payloadSize = 8 } = {}) {
+  const FREQS = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+  const sfIndex = FREQS.indexOf(sampleRate);
+  const profile = 1; // AAC-LC
+  const headerLength = 7;
+  const frameLength = headerLength + payloadSize;
+  const f = new Uint8Array(frameLength);
+  f[0] = 0xff;
+  f[1] = 0xf1;
+  f[2] = ((profile & 0x03) << 6) | ((sfIndex & 0x0f) << 2) | ((channels >> 2) & 0x01);
+  f[3] = ((channels & 0x03) << 6) | ((frameLength >> 11) & 0x03);
+  f[4] = (frameLength >> 3) & 0xff;
+  f[5] = ((frameLength & 0x07) << 5) | 0x1f;
+  f[6] = 0xfc;
+  return f;
+}
+
 describe('play', () => {
   it('fetches the station stream URL', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))));
@@ -239,6 +257,22 @@ describe('play', () => {
     const assertion = expect(playPromise).rejects.toThrow('timed out');
     await vi.advanceTimersByTimeAsync(15000);
     await assertion;
+  });
+});
+
+describe('play (AAC stream)', () => {
+  it('auto-detects ADTS AAC and schedules audio buffers with the correct sample rate and channels', async () => {
+    const frame = buildAdtsFrame({ sampleRate: 44100, channels: 1, payloadSize: 8 });
+    const twoFrames = new Uint8Array([...frame, ...frame]);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(fakeStreamResponse(twoFrames)));
+    const { play } = await import('./iosStreamEngine.js');
+
+    await play(testStation, 0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fakeAudioContext.buffersCreated.length).toBeGreaterThanOrEqual(1);
+    expect(fakeAudioContext.buffersCreated[0].sampleRate).toBe(44100);
+    expect(fakeAudioContext.buffersCreated[0].numberOfChannels).toBe(1);
   });
 });
 
