@@ -112,10 +112,43 @@
 
   $effect(() => {
     const value = $delaySeconds;
-    audioEngine.setDelaySeconds(value);
     if ($currentStation) setStationDelay($currentStation.id, value);
-    if (!audioEngine.isIOSEngine() && get(isPlaying) && Date.now() - streamStartedAt < value * 1000) {
-      rebufferForDelayIncrease();
+
+    if (audioEngine.isIOSEngine()) {
+      if (get(isPlaying)) {
+        let restartRequestId;
+        audioEngine.setDelaySeconds(value, {
+          onBegin: () => {
+            restartRequestId = ++playRequestId;
+            isPlaying.set(false);
+            isLoading.set(true);
+          },
+          onComplete: () => {
+            if (restartRequestId !== playRequestId) return;
+            streamStartedAt = Date.now();
+            waitForDelayBuffer().then(() => {
+              if (restartRequestId !== playRequestId) return;
+              isLoading.set(false);
+              isPlaying.set(true);
+            });
+          },
+          onError: (err) => {
+            if (restartRequestId == null || restartRequestId !== playRequestId) return;
+            console.warn('Fatal stream error:', err);
+            audioEngine.pause();
+            isPlaying.set(false);
+            isLoading.set(false);
+            playbackError = `${get(currentStation)?.name ?? 'La radio'} no está disponible en este momento. Probá de nuevo más tarde o elegí otra radio.`;
+          },
+        });
+      } else {
+        audioEngine.setDelaySeconds(value);
+      }
+    } else {
+      audioEngine.setDelaySeconds(value);
+      if (get(isPlaying) && Date.now() - streamStartedAt < value * 1000) {
+        rebufferForDelayIncrease();
+      }
     }
   });
 

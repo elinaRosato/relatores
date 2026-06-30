@@ -170,13 +170,18 @@ export function pause() {
   stopAllSources();
 }
 
-export function setDelaySeconds(value) {
+export function setDelaySeconds(value, { onBegin, onComplete, onError } = {}) {
   if (!currentStation || !currentAbortController) return;
   if (delayChangeTimer) clearTimeout(delayChangeTimer);
-  delayChangeTimer = setTimeout(() => {
+  delayChangeTimer = setTimeout(async () => {
     delayChangeTimer = null;
-    play(currentStation, value, currentOnFatalError).catch((err) => {
-      if (currentOnFatalError) currentOnFatalError(err);
-    });
+    if (onBegin) onBegin();
+    try {
+      await play(currentStation, value, onError || currentOnFatalError);
+      if (onComplete) onComplete();
+    } catch (err) {
+      const handler = onError || currentOnFatalError;
+      if (handler) handler(err);
+    }
   }, 300);
 }

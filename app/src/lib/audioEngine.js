@@ -113,10 +113,10 @@ export function pause() {
   if (analyserNode) analyserNode.disconnect();
 }
 
-export function setDelaySeconds(seconds) {
+export function setDelaySeconds(seconds, callbacks) {
   currentDelaySeconds = seconds;
   if (USE_IOS_ENGINE) {
-    iosEngine.setDelaySeconds(seconds);
+    iosEngine.setDelaySeconds(seconds, callbacks);
     return;
   }
   if (delayNode) delayNode.delayTime.value = seconds;
