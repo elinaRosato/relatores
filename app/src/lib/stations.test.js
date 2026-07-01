@@ -22,7 +22,8 @@ describe('fetchStations', () => {
     const result = await fetchStations();
 
     expect(global.fetch).toHaveBeenCalledWith('/stations');
-    expect(result).toEqual({ stations: proxiedStations, proxied: true });
+    const expectedStations = [{ ...proxiedStations[0], logo: 'radio_nacional.png' }];
+    expect(result).toEqual({ stations: expectedStations, proxied: true });
   });
 
   it('falls back to the built-in list when the proxy is unreachable', async () => {
