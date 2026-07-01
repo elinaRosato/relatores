@@ -120,11 +120,11 @@ describe('selecting a station', () => {
   });
 
   it("loads the newly selected station's own saved delay", async () => {
-    setStationDelay('la100', 22.5);
+    setStationDelay('la100', 12.5);
     render(App);
     await screen.findByText('Radio Nacional');
     await fireEvent.click(screen.getByText('La 100'));
-    expect(get(delaySeconds)).toBe(22.5);
+    expect(get(delaySeconds)).toBe(12.5);
   });
 
   it('defaults to 0s delay for a station with no saved value', async () => {
@@ -379,6 +379,7 @@ describe('delay availability on iOS', () => {
     supportsWebCodecsAudio.mockReturnValue(true);
     render(App);
     await screen.findByText('Radio Nacional');
+    await fireEvent.click(screen.getByText('Radio Nacional'));
     expect(screen.queryByText(/delay no está disponible/i)).toBeNull();
     expect(screen.getByLabelText('Delay slider').disabled).toBe(false);
   });
@@ -387,6 +388,7 @@ describe('delay availability on iOS', () => {
     isIOS.mockReturnValue(false);
     render(App);
     await screen.findByText('Radio Nacional');
+    await fireEvent.click(screen.getByText('Radio Nacional'));
     expect(screen.queryByText(/delay no está disponible/i)).toBeNull();
     expect(screen.getByLabelText('Delay slider').disabled).toBe(false);
   });

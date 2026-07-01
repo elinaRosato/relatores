@@ -20,8 +20,8 @@ describe('clampDelay', () => {
     expect(clampDelay(-5)).toBe(0);
   });
 
-  it('clamps to a 60 maximum', () => {
-    expect(clampDelay(65)).toBe(60);
+  it('clamps to a 15 maximum', () => {
+    expect(clampDelay(65)).toBe(15);
   });
 });
 

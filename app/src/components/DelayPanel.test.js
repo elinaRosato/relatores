@@ -17,35 +17,26 @@ describe('DelayPanel', () => {
   it('updates the store when the slider is moved', async () => {
     render(DelayPanel);
     const slider = screen.getByLabelText('Delay slider');
-    await fireEvent.input(slider, { target: { value: '20' } });
-    expect(get(delaySeconds)).toBe(20);
+    await fireEvent.input(slider, { target: { value: '12' } });
+    expect(get(delaySeconds)).toBe(12);
   });
 
   it('highlights the matching preset and clears it when the value no longer matches', async () => {
     render(DelayPanel);
-    await fireEvent.click(screen.getByText('10s'));
-    expect(screen.getByText('10s').classList.contains('active')).toBe(true);
+    await fireEvent.click(screen.getByRole('button', { name: '10s' }));
+    expect(screen.getByRole('button', { name: '10s' }).classList.contains('active')).toBe(true);
 
     setDelay(12.3);
     await Promise.resolve();
-    expect(screen.getByText('10s').classList.contains('active')).toBe(false);
-  });
-
-  it('nudges by 0.1s when the fine-tune buttons are clicked', async () => {
-    setDelay(10);
-    render(DelayPanel);
-    await fireEvent.click(screen.getByLabelText('Sumar 0.1 segundos'));
-    expect(get(delaySeconds)).toBe(10.1);
-    await fireEvent.click(screen.getByLabelText('Restar 0.1 segundos'));
-    expect(get(delaySeconds)).toBeCloseTo(10, 5);
+    expect(screen.getByRole('button', { name: '10s' }).classList.contains('active')).toBe(false);
   });
 
   it('commits a typed value on blur, clamped and snapped', async () => {
     render(DelayPanel);
     const input = screen.getByLabelText('Delay en segundos');
-    await fireEvent.input(input, { target: { value: '23.74' } });
+    await fireEvent.input(input, { target: { value: '8.74' } });
     await fireEvent.blur(input);
-    expect(get(delaySeconds)).toBe(23.7);
+    expect(get(delaySeconds)).toBe(8.7);
   });
 
   it('commits a typed value on Enter', async () => {
@@ -70,8 +61,6 @@ describe('DelayPanel', () => {
     render(DelayPanel, { props: { disabled: true } });
     expect(screen.getByLabelText('Delay slider').disabled).toBe(true);
     expect(screen.getByLabelText('Delay en segundos').disabled).toBe(true);
-    expect(screen.getByText('10s').disabled).toBe(true);
-    expect(screen.getByLabelText('Sumar 0.1 segundos').disabled).toBe(true);
-    expect(screen.getByLabelText('Restar 0.1 segundos').disabled).toBe(true);
+    expect(screen.getByRole('button', { name: '10s' }).disabled).toBe(true);
   });
 });
