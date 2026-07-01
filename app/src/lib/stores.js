@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 
 export function clampDelay(value) {
   const snapped = Math.round(value * 10) / 10;
-  return Math.min(60, Math.max(0, snapped));
+  return Math.min(15, Math.max(0, snapped));
 }
 
 export const delaySeconds = writable(0);

@@ -3,7 +3,7 @@
 
   let { disabled = false } = $props();
 
-  const presets = [5, 10, 15, 20, 30, 45];
+  const presets = [3, 5, 7, 10, 12, 15];
 
   let editValue = $state($delaySeconds.toFixed(1));
 
@@ -29,54 +29,45 @@
 </script>
 
 <div class="delay-section" class:disabled>
-  <div class="delay-header">
-    <div>
-      <div class="delay-label">Delay de audio</div>
-      <div class="delay-hint">Ajustá hasta que el audio coincida con la imagen</div>
-    </div>
-    <div class="delay-value-display">
-      <input
-        class="delay-seconds"
-        type="text"
-        inputmode="decimal"
-        bind:value={editValue}
-        onblur={commitEdit}
-        onkeydown={handleEditKeydown}
-        aria-label="Delay en segundos"
-        {disabled}
-      />
-      <span class="delay-unit">s</span>
-    </div>
+  <div class="delay-display">
+    <input
+      class="delay-seconds"
+      type="text"
+      inputmode="decimal"
+      bind:value={editValue}
+      onblur={commitEdit}
+      onkeydown={handleEditKeydown}
+      aria-label="Delay en segundos"
+      {disabled}
+    />
+    <span class="delay-unit">s</span>
   </div>
+  <p class="delay-hint">Ajustá hasta que coincida con la imagen</p>
 
   <input
     type="range"
     min="0"
-    max="60"
+    max="15"
     step="0.1"
     value={$delaySeconds}
+    style="--track-fill: {($delaySeconds / 15 * 100).toFixed(1)}%"
     oninput={(e) => setDelay(parseFloat(e.target.value))}
     aria-label="Delay slider"
     {disabled}
   />
 
   <div class="delay-ticks">
-    <span>0s</span><span>15s</span><span>30s</span><span>45s</span><span>60s</span>
+    <span>0s</span><span>5s</span><span>10s</span><span>15s</span>
   </div>
 
   <div class="presets">
-    <span class="presets-label">Presets rápidos:</span>
     {#each presets as p (p)}
-      <button class="preset-btn" class:active={$delaySeconds === p} onclick={() => setDelay(p)} {disabled}>
-        {p}s
-      </button>
+      <button
+        class="preset-btn"
+        class:active={$delaySeconds === p}
+        onclick={() => setDelay(p)}
+        {disabled}
+      >{p}s</button>
     {/each}
-  </div>
-
-  <div class="fine-tune">
-    <span class="fine-label">Ajuste fino:</span>
-    <button class="fine-btn" onclick={() => setDelay($delaySeconds - 0.1)} aria-label="Restar 0.1 segundos" {disabled}>−</button>
-    <span class="fine-step">0.1s</span>
-    <button class="fine-btn" onclick={() => setDelay($delaySeconds + 0.1)} aria-label="Sumar 0.1 segundos" {disabled}>+</button>
   </div>
 </div>

@@ -8,6 +8,19 @@
 //      application/octet-stream, the direct servers don't.
 // Accepted trade-off: on iOS the fallback streams will likely fail, but on
 // desktop/Android they'll still work.
+const LOGOS = {
+  rnacional:   'radio_nacional.png',
+  rivadavia:   'radio_rivadavia.jpeg',
+  continental: 'radio_continental.png',
+  la990:       'la_990.webp',
+  mitre:       'radio_mitre.jpeg',
+  la100:       'la_100.png',
+};
+
+function withLogos(stations) {
+  return stations.map((s) => ({ ...s, logo: LOGOS[s.id] ?? null }));
+}
+
 const FALLBACK_STATIONS = [
   { id: 'rnacional', name: 'Radio Nacional', freq: 'AM 870 / FM 98.7 — Buenos Aires', stream: 'https://sa.mp3.icecast.magma.edge-access.net/sc_rad1' },
   { id: 'rivadavia', name: 'Radio Rivadavia', freq: 'AM 630 — Buenos Aires', stream: 'https://playerservices.streamtheworld.com/api/livestream-redirect/RIVADAVIA.mp3' },
@@ -31,9 +44,9 @@ export async function fetchStations() {
     const response = await fetch('/stations');
     if (!response.ok) throw new Error(`Proxy responded with ${response.status}`);
     const stations = await response.json();
-    return { stations, proxied: true };
+    return { stations: withLogos(stations), proxied: true };
   } catch (err) {
     console.warn('Falling back to built-in station list:', err);
-    return { stations: FALLBACK_STATIONS, proxied: false };
+    return { stations: withLogos(FALLBACK_STATIONS), proxied: false };
   }
 }
