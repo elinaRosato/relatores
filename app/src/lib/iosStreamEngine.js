@@ -109,7 +109,6 @@ export async function play(station, delaySeconds, onFatalError) {
   let decoder;
   let configured = false;
   let nextStartTime = null;
-  let firstFrameAudioTime = null; // audio-context time when the first frame is scheduled to play
   let frameTimestampUs = 0;
   let resolveFirstFrame;
   let rejectFirstFrame;
@@ -141,10 +140,7 @@ export async function play(station, delaySeconds, onFatalError) {
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
       source.connect(gainNode);
-      if (nextStartTime === null) {
-        nextStartTime = audioCtx.currentTime + delaySeconds;
-        firstFrameAudioTime = nextStartTime;
-      }
+      if (nextStartTime === null) nextStartTime = audioCtx.currentTime + delaySeconds;
       activeSources.push(source);
       source.onended = () => { activeSources = activeSources.filter((s) => s !== source); };
       source.start(nextStartTime);
@@ -165,34 +161,16 @@ export async function play(station, delaySeconds, onFatalError) {
         const { done, value } = await reader.read();
         if (done) {
           if (abortController.signal.aborted) break;
-          if (!firstFrameSettled) break; // 15 s timeout handles the pre-first-frame case
-          // StreamTheWorld CDN closes after ~32 KB, expecting the client to reconnect.
-          //
-          // Two-part fix to avoid the "scratched disk" repetition effect:
-          //
-          // 1. TIMING: wait until ~1.5 s of pre-scheduled audio remains before reconnecting.
-          //    The CDN serves a rolling ~2 s live buffer, so waiting lets its window advance
-          //    before we fetch again — reducing content overlap without Range support.
-          //    1.5 s also provides headroom for cold CDN connections (400-600 ms on mobile).
-          //
-          //    IMPORTANT: use `firstFrameAudioTime` (when playback *starts*, not when frames
-          //    are scheduled) to measure remaining buffer. With delay > 0, `nextStartTime` is
-          //    delaySeconds ahead of `currentTime`, which would give a wildly inflated
-          //    bufferRemaining and a correspondingly long wait — during which the CDN's live
-          //    window moves on by delaySeconds, causing a content jump on reconnect.
-          //
-          //    (In tests, fake frames are ~26 ms each so bufferRemaining < 1.5 s → waitMs=0.)
-          //
-          // 2. RANGE: bytes=N- tells the CDN to pick up exactly where we left off, eliminating
-          //    overlap entirely for CDNs that honour byte-range requests on live streams
-          //    (StreamTheWorld advertises Accept-Ranges: bytes).
-          const playStartsAt = firstFrameAudioTime ?? audioCtx.currentTime;
-          const bufferRemaining = (nextStartTime ?? audioCtx.currentTime)
-            - Math.max(audioCtx.currentTime, playStartsAt);
-          const RECONNECT_AHEAD_S = 1.5;
-          const waitMs = Math.max(0, (bufferRemaining - RECONNECT_AHEAD_S) * 1000);
-          if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
-          if (abortController.signal.aborted) break;
+          if (!firstFrameSettled) break;
+          // StreamTheWorld CDN closes after ~32 KB per connection expecting a reconnect.
+          // Range: bytes=N- continues byte-exactly where we left off, so there is no
+          // content overlap. The pre-scheduled buffer (≈2 s per segment at 128 kbps)
+          // gives enough headroom for the reconnect — no artificial delay needed.
+          if (nextStartTime !== null && nextStartTime < audioCtx.currentTime) {
+            // Buffer ran dry during a slow reconnect — snap forward so the next
+            // frames play immediately rather than in a burst to catch up.
+            nextStartTime = audioCtx.currentTime;
+          }
           try {
             const newResponse = await fetch(station.stream, {
               signal: abortController.signal,
