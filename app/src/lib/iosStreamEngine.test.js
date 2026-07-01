@@ -72,6 +72,9 @@ class FakeAudioData {
 }
 
 class FakeAudioDecoder {
+  static isConfigSupported(config) {
+    return Promise.resolve({ supported: true });
+  }
   constructor({ output, error }) {
     this._output = output;
     this._error = error;
@@ -428,6 +431,23 @@ describe('fatal errors after the first frame', () => {
 
     expect(onFatalError).toHaveBeenCalledTimes(1);
     expect(onFatalError.mock.calls[0][0].message).toMatch(/reconnect/i);
+  });
+
+  it('rejects immediately when the codec is not supported by AudioDecoder', async () => {
+    class UnsupportedDecoder extends FakeAudioDecoder {
+      static isConfigSupported() {
+        return Promise.resolve({ supported: false });
+      }
+    }
+    globalThis.AudioDecoder = UnsupportedDecoder;
+
+    const frame = buildAdtsFrame({ sampleRate: 44100, channels: 2, payloadSize: 8 });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(openStreamResponse(frame))
+    );
+    const { play } = await import('./iosStreamEngine.js');
+
+    await expect(play(testStation, 0)).rejects.toThrow(/unsupported audio codec/i);
   });
 });
 

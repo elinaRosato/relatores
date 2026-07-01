@@ -161,7 +161,7 @@ export async function play(station, delaySeconds, onFatalError) {
 
   (async () => {
     try {
-      while (!abortController.signal.aborted) {
+      outer: while (!abortController.signal.aborted) {
         const { done, value } = await reader.read();
         if (done) {
           if (abortController.signal.aborted) break;
@@ -241,6 +241,11 @@ export async function play(station, delaySeconds, onFatalError) {
             const config = detectedFormat === 'mp3'
               ? { codec: 'mp3', sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels }
               : { codec: `mp4a.40.${frame.audioObjectType}`, sampleRate: frame.sampleRate, numberOfChannels: frame.numberOfChannels, description: frame.description };
+            const { supported } = await AudioDecoder.isConfigSupported(config);
+            if (!supported) {
+              handleFatalError(new Error(`Unsupported audio codec: ${config.codec}`));
+              break outer;
+            }
             decoder.configure(config);
             configured = true;
           }
