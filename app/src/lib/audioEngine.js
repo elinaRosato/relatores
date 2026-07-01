@@ -1,7 +1,7 @@
-import { isIOS, supportsWebCodecsAudio } from './platform.js';
+import { supportsWebCodecsAudio } from './platform.js';
 import * as iosEngine from './iosStreamEngine.js';
 
-const USE_IOS_ENGINE = isIOS() && supportsWebCodecsAudio();
+const USE_IOS_ENGINE = supportsWebCodecsAudio();
 
 let audioCtx = null;
 let audioEl = null;
