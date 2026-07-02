@@ -117,11 +117,12 @@ function fakeStreamResponse(bytes, { ok = true, status = 200 } = {}) {
 
 // Like fakeStreamResponse but keeps the stream open so abort — not stream-end
 // — is what terminates the read loop. Use this in tests where the assertion is
-// that a clean done:true is NOT produced.
-function openStreamResponse(bytes) {
+// that a clean done:true is NOT produced. Pass { status: 206 } to simulate a
+// live-edge response (required for reconnect mocks under the 206-wait logic).
+function openStreamResponse(bytes, { status = 200 } = {}) {
   return {
     ok: true,
-    status: 200,
+    status,
     body: new ReadableStream({
       start(controller) {
         controller.enqueue(bytes);
@@ -402,20 +403,36 @@ describe('fatal errors after the first frame', () => {
     expect(onFatalError).toHaveBeenCalledWith(expect.objectContaining({ message: 'connection dropped' }));
   });
 
-  it('reconnects transparently when the CDN closes the connection after a segment', async () => {
-    // StreamTheWorld sends ~32 KB then closes. The engine should reconnect
-    // immediately without surfacing an error — pre-scheduled AudioBufferSourceNodes
-    // cover the brief gap.
+  it('reconnects and streams when the CDN responds 206 on reconnect', async () => {
+    // StreamTheWorld eventually returns a 206 live-edge response that streams
+    // indefinitely. The engine should accept it and continue without error.
     vi.spyOn(globalThis, 'fetch')
       .mockImplementationOnce(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))))
-      .mockImplementation(() => Promise.resolve(openStreamResponse(new Uint8Array(0))));
+      .mockImplementation(() => Promise.resolve(openStreamResponse(new Uint8Array(0), { status: 206 })));
     const { play } = await import('./iosStreamEngine.js');
     const onFatalError = vi.fn();
 
     await play(testStation, 0, onFatalError);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2); // initial + reconnect
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2); // initial + live-edge reconnect
+    expect(onFatalError).not.toHaveBeenCalled();
+  });
+
+  it('drains 200 past-segment responses before streaming from the 206 live edge', async () => {
+    // CDN returns 200 (buffered segments, repeating content) then 206 (live edge).
+    // The engine must drain the 200 silently — no error, no audio repeat.
+    vi.spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(() => Promise.resolve(fakeStreamResponse(decodeBase64(TWO_REAL_FRAMES_BASE64))))
+      .mockImplementationOnce(() => Promise.resolve(fakeStreamResponse(new Uint8Array(0)))) // drained 200
+      .mockImplementation(() => Promise.resolve(openStreamResponse(new Uint8Array(0), { status: 206 })));
+    const { play } = await import('./iosStreamEngine.js');
+    const onFatalError = vi.fn();
+
+    await play(testStation, 0, onFatalError);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3); // initial + drained 200 + live-edge 206
     expect(onFatalError).not.toHaveBeenCalled();
   });
 
