@@ -1243,6 +1243,9 @@ footer {
     padding: 20px 18px;
     margin: 0 20px 24px;
   }
+  .player-panel {
+    margin: 0 20px 24px;
+  }
   .stations-layout {
     grid-template-columns: 1fr;
   }
