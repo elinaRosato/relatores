@@ -162,32 +162,46 @@ export async function play(station, delaySeconds, onFatalError) {
         if (done) {
           if (abortController.signal.aborted) break;
           if (!firstFrameSettled) break;
-          // StreamTheWorld CDN closes after ~32 KB per connection expecting a reconnect.
-          // Range: bytes=N- continues byte-exactly where we left off, so there is no
-          // content overlap. The pre-scheduled buffer (≈2 s per segment at 128 kbps)
-          // gives enough headroom for the reconnect — no artificial delay needed.
+          // StreamTheWorld CDN serves 2-3 past buffered segments as 200 responses,
+          // then switches to a live-edge 206 that streams indefinitely.
+          // 200 responses repeat content (rolling buffer overlap) so we drain them
+          // silently — advancing totalBytesReceived — until we reach the 206.
+          // Each drain takes ~50-200 ms; the ≈2 s pre-scheduled buffer covers the gap.
           if (nextStartTime !== null && nextStartTime < audioCtx.currentTime) {
-            // Buffer ran dry during a slow reconnect — snap forward so the next
-            // frames play immediately rather than in a burst to catch up.
             nextStartTime = audioCtx.currentTime;
           }
-          try {
-            const newResponse = await fetch(station.stream, {
-              signal: abortController.signal,
-              headers: { Range: `bytes=${totalBytesReceived}-` },
-            });
+          while (!abortController.signal.aborted) {
+            let newResponse;
+            try {
+              newResponse = await fetch(station.stream, {
+                signal: abortController.signal,
+                headers: { Range: `bytes=${totalBytesReceived}-` },
+              });
+            } catch (err) {
+              if (!abortController.signal.aborted) handleFatalError(err);
+              break outer;
+            }
             if (!newResponse.ok) {
               handleFatalError(new Error(`Reconnect failed: ${newResponse.status}`));
+              break outer;
+            }
+            if (newResponse.status === 206) {
+              reader = newResponse.body.getReader();
+              if (detectedFormat === 'mp3') mp3Parser = createMp3FrameParser();
+              else if (detectedFormat === 'aac') aacParser = createAacFrameParser();
               break;
             }
-            reader = newResponse.body.getReader();
-            if (detectedFormat === 'mp3') mp3Parser = createMp3FrameParser();
-            else if (detectedFormat === 'aac') aacParser = createAacFrameParser();
-            continue;
-          } catch (err) {
-            if (!abortController.signal.aborted) handleFatalError(err);
-            break;
+            // 200: past buffered segment — drain it to advance totalBytesReceived
+            try {
+              const drainReader = newResponse.body.getReader();
+              while (true) {
+                const { done: drained, value: chunk } = await drainReader.read();
+                if (drained) break;
+                totalBytesReceived += chunk.byteLength;
+              }
+            } catch { /* aborted — outer while exits on next check */ }
           }
+          continue;
         }
         totalBytesReceived += value.byteLength;
         let frames;
